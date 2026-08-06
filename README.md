@@ -16,17 +16,28 @@ TokTickIT is an IT service desk application (Account & Access, Hardware, Softwar
 ```bash
 git clone https://github.com/Gluesaber/toktickit.git
 cd toktickit
-cd client && npm install
-cd ../server && npm install
+cd client
+npm install
+cd ../server
+npm install
 ```
 
 ## 2. Set up environment variables
 
 Copy the example env files and fill in your own local values.
 
+macOS / Linux:
+
 ```bash
 cp client/.env.example client/.env
 cp server/.env.example server/.env
+```
+
+Windows (PowerShell or cmd):
+
+```bat
+copy client\.env.example client\.env
+copy server\.env.example server\.env
 ```
 
 - `client/.env` → `VITE_API_URL` should point at the backend (default `http://localhost:3000`).
@@ -36,14 +47,12 @@ Never commit your real `.env` files — only `.env.example` is tracked in git.
 
 ## 3. Start PostgreSQL (Docker option)
 
-```bash
-docker run -d --name toktickit-db \
-  -e POSTGRES_USER=toktickit \
-  -e POSTGRES_PASSWORD=toktickit \
-  -e POSTGRES_DB=toktickit \
-  -p 5433:5432 \
-  postgres:16-alpine
 ```
+docker run -d --name toktickit-db-maii -e POSTGRES_USER=toktickit -e POSTGRES_PASSWORD=toktickit -e POSTGRES_DB=toktickit -p 5433:5432 postgres:16-alpine
+```
+
+(Personalized container name to avoid clashing with another `toktickit-*`
+container on your machine — pick a different name/port if these are taken.)
 
 If you use this, set `server/.env` to:
 
@@ -51,11 +60,11 @@ If you use this, set `server/.env` to:
 DATABASE_URL="postgresql://toktickit:toktickit@localhost:5433/toktickit?schema=public"
 ```
 
-(Port `5433` is used instead of the default `5432` to avoid clashing with any other local Postgres containers.)
-
 ## 4. Run database migrations and seed data
 
-Once the `Category` model has been added to `server/prisma/schema.prisma` (Issue 3):
+**Not part of Issue 1** — the `Category` model is still a `TODO` in
+`server/prisma/schema.prisma` until Issue 3 lands; running this earlier will
+error. Once the model exists:
 
 ```bash
 cd server
@@ -82,8 +91,10 @@ Open `http://localhost:5173` in a browser. Click **Check System** to verify the 
 ## 6. Run tests
 
 ```bash
-cd server && npm test   # Vitest + Supertest (API tests)
-cd client && npm test   # Vitest (UI tests)
+cd server
+npm test   # Vitest + Supertest (API tests)
+cd ../client
+npm test   # Vitest (UI tests)
 ```
 
 ## Project structure
