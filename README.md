@@ -20,6 +20,7 @@ cd client
 npm install
 cd ../server
 npm install
+cd ..
 ```
 
 ## 2. Set up environment variables
