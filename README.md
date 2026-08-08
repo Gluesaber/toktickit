@@ -63,10 +63,6 @@ DATABASE_URL="postgresql://toktickit:toktickit@localhost:5433/toktickit?schema=p
 
 ## 4. Run database migrations and seed data
 
-**Not part of Issue 1** — the `Category` model is still a `TODO` in
-`server/prisma/schema.prisma` until Issue 3 lands; running this earlier will
-error. Once the model exists:
-
 ```bash
 cd server
 npx prisma migrate dev --name init
