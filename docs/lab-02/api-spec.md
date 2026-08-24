@@ -131,8 +131,8 @@ Response `200`:
 }
 ```
 List rows are denormalized (`categoryName`, `relatedSystemName`) so the table/cards don't need extra
-client-side joins. An empty-but-successful result (`"data": []`) is how both the "empty" (BR-36) and
-"no-results" (BR-37) UI states are distinguished — the frontend tells them apart by whether any
+client-side joins. An empty-but-successful result (`"data": []`) is how both the "empty" (BR-37) and
+"no-results" (BR-38) UI states are distinguished — the frontend tells them apart by whether any
 search/filter parameter was active, not by a different API response.
 
 | Case | Status | `error.code` |
