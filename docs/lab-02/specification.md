@@ -140,28 +140,31 @@ reused without rework in later sprints.
 - BR-32 A removed Attachment stays visible in Ticket Detail as metadata (filename, size, upload date,
   removed date, reason) but its download/preview action is disabled in the UI and rejected by the API.
 - BR-33 Only the Requester who owns an Attachment's ticket may add or remove that ticket's Attachments.
+- BR-34 If an Attachment upload fails for any reason (network interruption, type/size rejection, or the
+  5-active-Attachment limit), the existing Attachment list is left unchanged, a per-file error message is
+  shown, and any other files in the same batch may still succeed independently.
 
 **Inactive Requesters**
-- BR-34 An inactive Requester (`isActive = false`) never appears in the Development Requester Selection
+- BR-35 An inactive Requester (`isActive = false`) never appears in the Development Requester Selection
   dropdown.
-- BR-35 Tickets created by a Requester before deactivation remain in the database and queryable by the
+- BR-36 Tickets created by a Requester before deactivation remain in the database and queryable by the
   original API, but that Requester can no longer be selected as the active testing context (Lab 2 has no
   admin UI to toggle `isActive`; this rule is asserted against seed data only).
 
 **Empty and no-results states**
-- BR-36 If the Requester has zero Tickets, My Tickets shows an "empty" state distinct from a "no
+- BR-37 If the Requester has zero Tickets, My Tickets shows an "empty" state distinct from a "no
   results" state.
-- BR-37 If the Requester has Tickets but the current search/filter combination matches none, My Tickets
+- BR-38 If the Requester has Tickets but the current search/filter combination matches none, My Tickets
   shows a "no results" state with a clear-filters action.
-- BR-38 If no active Development Requesters exist, the Selection screen shows an empty state and does not
+- BR-39 If no active Development Requesters exist, the Selection screen shows an empty state and does not
   allow proceeding.
 
 **Ticket Detail access**
-- BR-39 Ticket Detail is reachable only via a Ticket id/number owned by the current Requester; direct
+- BR-40 Ticket Detail is reachable only via a Ticket id/number owned by the current Requester; direct
   navigation to another Requester's Ticket returns a not-found state, never that Ticket's data.
 
 **Transition to Lab 3**
-- BR-40 The Development Requester Selector, its client-side stored selection, and the requesterId-as-
+- BR-41 The Development Requester Selector, its client-side stored selection, and the requesterId-as-
   parameter pattern are temporary Lab 2 testing mechanisms. Lab 3 replaces requester identification with
   authenticated session/token identity without changing the underlying Requester data model (see §11).
 
@@ -249,51 +252,51 @@ BR-11–BR-13.
   the addition is rejected with a limit-reached message.
 - AC-10 Given the backend is unreachable, when the Requester submits a valid form, then a safe failure
   message is shown and all entered field values remain in the form.
-- AC-30 Given the Submit button is clicked, when the request is in flight, then it shows a busy state and
+- AC-11 Given the Submit button is clicked, when the request is in flight, then it shows a busy state and
   is disabled until the request completes.
 
 **My Tickets**
-- AC-11 Given Requester A has 12 tickets and Requester B has 3, when Requester A opens My Tickets, then
+- AC-12 Given Requester A has 12 tickets and Requester B has 3, when Requester A opens My Tickets, then
   only Requester A's 12 tickets are listed.
-- AC-12 Given the Requester searches by a Ticket Number substring, when the search executes, then only
+- AC-13 Given the Requester searches by a Ticket Number substring, when the search executes, then only
   matching tickets are shown.
-- AC-13 Given the Requester filters by Category "Hardware", when the filter is applied, then only
+- AC-14 Given the Requester filters by Category "Hardware", when the filter is applied, then only
   Hardware tickets are shown.
-- AC-14 Given the Requester has zero tickets, when My Tickets loads, then an empty state is shown instead
+- AC-15 Given the Requester has zero tickets, when My Tickets loads, then an empty state is shown instead
   of an empty table.
-- AC-15 Given the Requester has tickets but the active filters match none, when the list loads, then a
+- AC-16 Given the Requester has tickets but the active filters match none, when the list loads, then a
   no-results state with a clear-filters action is shown.
-- AC-16 Given more tickets exist than fit one page, when the Requester navigates to page 2, then the next
+- AC-17 Given more tickets exist than fit one page, when the Requester navigates to page 2, then the next
   set loads and the page indicator updates.
-- AC-17 Given the Requester sorts by Requested Priority, when the sort is applied, then the list re-orders
+- AC-18 Given the Requester sorts by Requested Priority, when the sort is applied, then the list re-orders
   and the active-sort indicator updates.
-- AC-18 Given Requester A is viewing My Tickets, when they switch to Requester B via Change Requester,
+- AC-19 Given Requester A is viewing My Tickets, when they switch to Requester B via Change Requester,
   then Requester A's tickets disappear and Requester B's tickets load.
 
 **Ticket Detail & Attachments**
-- AC-19 Given a Requester opens Ticket Detail for a ticket they own, when the page loads, then all ticket
+- AC-20 Given a Requester opens Ticket Detail for a ticket they own, when the page loads, then all ticket
   fields render read-only with correct values from the database.
-- AC-20 Given a Requester requests Ticket Detail for a ticket owned by another Requester, when the request
+- AC-21 Given a Requester requests Ticket Detail for a ticket owned by another Requester, when the request
   is made, then a not-found/blocked state is shown and no ticket data is rendered.
-- AC-21 Given an active Attachment on an owned ticket, when the Requester clicks Download, then the
+- AC-22 Given an active Attachment on an owned ticket, when the Requester clicks Download, then the
   original file downloads successfully.
-- AC-22 Given a removed Attachment, when the Requester views Ticket Detail, then its metadata is visible
+- AC-23 Given a removed Attachment, when the Requester views Ticket Detail, then its metadata is visible
   but Download/Preview is disabled.
-- AC-23 Given a removed Attachment, when a download is attempted directly against its API endpoint, then
+- AC-24 Given a removed Attachment, when a download is attempted directly against its API endpoint, then
   the backend rejects the request rather than serving the file.
-- AC-24 Given an owned ticket with fewer than 5 active Attachments, when the Requester adds one valid
+- AC-25 Given an owned ticket with fewer than 5 active Attachments, when the Requester adds one valid
   Attachment from Ticket Detail, then it appears immediately as active.
-- AC-25 Given an active Attachment the Requester owns, when they soft-remove it with a reason, then it
+- AC-26 Given an active Attachment the Requester owns, when they soft-remove it with a reason, then it
   becomes non-downloadable while its metadata and reason remain visible.
 
 **Requester Selector & accessibility**
-- AC-26 Given no active Development Requesters exist, when the Selection screen loads, then an empty
+- AC-27 Given no active Development Requesters exist, when the Selection screen loads, then an empty
   state is shown and Continue is unavailable.
-- AC-27 Given the active-Requesters API call fails, when the Selection screen loads, then a safe failure
+- AC-28 Given the active-Requesters API call fails, when the Selection screen loads, then a safe failure
   state is shown instead of an unhandled error.
-- AC-28 Given the viewport is resized to mobile width (<768px), when any Lab 2 screen is viewed, then no
+- AC-29 Given the viewport is resized to mobile width (<768px), when any Lab 2 screen is viewed, then no
   horizontal scrolling occurs and all controls remain reachable and touch-friendly.
-- AC-29 Given a keyboard-only user, when they tab through the Development Requester Selection screen,
+- AC-30 Given a keyboard-only user, when they tab through the Development Requester Selection screen,
   then all controls are reachable with a visible focus indicator.
 
 ## 10. Definition of Done
@@ -326,7 +329,7 @@ BR-11–BR-13.
 - **`Requester` model name (not `DevRequester`)**: kept generic so Lab 3 can add authentication fields to
   the same table instead of introducing a parallel identity model — the labsheet's example prompt calls
   it a "temporary Lab 2 RequesterUser model," but the underlying entity (a person who submits tickets) is
-  permanent; only the *selection mechanism* (BR-40) is temporary.
+  permanent; only the *selection mechanism* (BR-41) is temporary.
 - **`Category.isActive` added**: Lab 1's `Category` model had no active flag; Lab 2's API contract requires
   "retrieve active Categories," so the field is added now (all four seeded categories default active).
 - **Requested Priority enum**: `LOW | MEDIUM | HIGH | URGENT`.
@@ -335,7 +338,7 @@ BR-11–BR-13.
 - **My Tickets pagination**: default page size 10; permitted sizes 10/25/50.
 - **Related Systems seed** (≥6 required): Email, Campus Wi-Fi, VPN, LEB2 App, Grade Submission App,
   Printer, Corporate Laptop (7 total, per the labsheet's own example list).
-  Dev Requester seed: 4 active + 1 inactive, realistic fictional names/emails.
+- **Dev Requester seed**: 4 active + 1 inactive, realistic fictional names/emails.
 - **Client test directory naming**: the labsheet prints `client/.../lab-02 tests/`; Lab 1 already
   established `client/tests/lab-01/` (no space) as this repo's real convention, so Lab 2 tests live in
   `client/tests/lab-02/` for consistency — file names (`CreateTicket.test.tsx`, etc.) match the labsheet.
