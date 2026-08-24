@@ -195,7 +195,7 @@ Spec DD requirement to record the design before implementation):
 
 | Model | Key fields | Notes |
 |---|---|---|
-| `Category` (extend existing) | `id`, `name` (unique), `isActive` (new, default `true`), `createdAt` | Existing Lab 1 model gains `isActive` so "retrieve active Categories" (§6) is meaningful. |
+| `Category` (extend existing) | `id`, `name` (unique), `isActive` (new, default `true`), `createdAt` | Existing Lab 1 model gains `isActive` so "retrieve active Categories" (§8) is meaningful. |
 | `RelatedSystem` (new) | `id`, `name` (unique), `isActive` (default `true`), `createdAt` | Same shape as `Category`. |
 | `Requester` (new) | `id`, `name`, `email` (unique), `isActive` (default `true`), `createdAt` | The Lab 2 "Development Requester." Kept as a plain domain model (not named `DevRequester`) so Lab 3 can extend it in place with auth fields instead of migrating to a new table — see §11. |
 | `Ticket` (new) | `id`, `ticketNumber` (unique, backend-generated), `requesterId` (FK), `categoryId` (FK), `relatedSystemId` (FK), `summary`, `description` (`@db.Text`), `requestedPriority` (enum `LOW\|MEDIUM\|HIGH\|URGENT`), `currentStatus` (enum, only `NEW` reachable in Lab 2), `createdAt`, `updatedAt` | Indexes: `requesterId`, `categoryId`, `relatedSystemId`, `currentStatus`, `createdAt`; unique on `ticketNumber`. |

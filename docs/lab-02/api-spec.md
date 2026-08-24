@@ -12,6 +12,9 @@ Business Rules (BR) and Acceptance Criteria (AC); every row below is traceable t
   Development Requester currently selected in the UI (BR-08). The backend never infers identity any other
   way (no cookies/sessions this sprint).
 - Timestamps are ISO 8601 UTC strings (e.g. `"2026-08-24T09:32:10.515Z"`).
+- An Attachment's `active` field in every response below is derived (`removedAt === null`), not a stored
+  column — `specification.md` §7 only persists `removedAt`/`removalReason`. `storedFileName` (the
+  generated on-disk name) is a server-internal detail and is never included in a response.
 - All error responses share one envelope:
   ```json
   { "error": { "code": "VALIDATION_ERROR", "message": "Summary is required.", "fields": { "summary": "Summary is required." } } }
@@ -247,15 +250,20 @@ Response `200`:
 | `search` | no | string, matched case-insensitively as a partial match against `ticketNumber` **or** `summary` (BR-14) | none | any string accepted; no error possible |
 | `categoryId` | no | integer | none | non-numeric → `400`; a well-formed id with no matching row is a valid filter that simply matches zero tickets (not an error) |
 | `relatedSystemId` | no | integer | none | same rule as `categoryId` |
-| `priority` | no | `LOW \| MEDIUM \| HIGH \| URGENT` | none | any other value → `400 VALIDATION_ERROR` |
-| `status` | no | `NEW` (the only status reachable in Lab 2; other enum values are reserved for later labs) | none | any other value → `400 VALIDATION_ERROR` |
+| `requestedPriority` | no | `LOW \| MEDIUM \| HIGH \| URGENT` | none | any other value → `400 VALIDATION_ERROR` |
+| `currentStatus` | no | `NEW` (the only status reachable in Lab 2; other enum values are reserved for later labs) | none | any other value → `400 VALIDATION_ERROR` |
 | `sortBy` | no | `createdAt \| ticketNumber \| currentStatus \| requestedPriority` | `createdAt` | any other value → `400 VALIDATION_ERROR` |
 | `sortDir` | no | `asc \| desc` | `desc` | any other value → `400 VALIDATION_ERROR` |
 | `page` | no | integer ≥ 1 | `1` | non-numeric, missing, zero, or negative → silently reset to `1` (never an error — BR-17) |
 | `pageSize` | no | `10 \| 25 \| 50` | `10` | any other value → silently reset to `10` (never an error — BR-17) |
 
-Rationale for the split: `sortBy`/`sortDir`/`priority`/`status` are values the frontend always sends from
-a fixed dropdown, so an unrecognized value signals a client bug worth surfacing as `400`. `page`/`pageSize`
+Filter parameters intentionally reuse the exact field names from the Ticket model (`requestedPriority`,
+`currentStatus`, `categoryId`, `relatedSystemId`) rather than shorter aliases like `priority`/`status`, so
+the same name means the same thing whether it's a request body field, a `sortBy` value, or a filter param.
+
+Rationale for the required/clamped split: `sortBy`/`sortDir`/`requestedPriority`/`currentStatus` are values
+the frontend always sends from a fixed dropdown, so an unrecognized value signals a client bug worth
+surfacing as `400`. `page`/`pageSize`
 are more likely to come from a hand-edited URL or a stale bookmark, and BR-17 explicitly requires that
 paging past the end of the list stays a normal empty response rather than an error — so those two are
 clamped instead.
