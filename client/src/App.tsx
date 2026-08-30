@@ -1,54 +1,40 @@
-import { useState } from "react";
-import { checkSystem, Category } from "./api.js";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { RequesterProvider, useRequester } from "./context/RequesterContext.js";
+import DevRequesterSelector from "./components/DevRequesterSelector.js";
+import AppShell from "./components/AppShell.js";
+import MyTicketsPage from "./pages/MyTicketsPage.js";
+import CreateTicketPage from "./pages/CreateTicketPage.js";
+import TicketDetailPage from "./pages/TicketDetailPage.js";
 
-// UI states you must handle for Issue 4: idle, loading, success, error.
-type UiState = "idle" | "loading" | "success" | "error";
+// Issue 2-3 (Lab 2) — BR-10: every screen in this app is Requester-scoped, so with no Requester
+// selected we always show the Selection screen instead of the routed app, regardless of path
+// (AC-02 covers this for My Tickets specifically; this generalizes it to every route).
+function Gate() {
+  const { requester } = useRequester();
 
-export default function App() {
-  const [state, setState] = useState<UiState>("idle");
-  const [categories, setCategories] = useState<Category[]>([]);
-
-  async function handleCheck() {
-    setState("loading");
-    try {
-      const result = await checkSystem();
-      setCategories(result.categories);
-      setState("success");
-    } catch {
-      setState("error");
-    }
+  if (!requester) {
+    return <DevRequesterSelector />;
   }
 
   return (
-    <div className="container py-5" style={{ maxWidth: 640 }}>
-      <h1 className="h3 mb-4">
-        TokTickIT <span className="text-success">IT Service Desk</span>
-      </h1>
+    <Routes>
+      <Route element={<AppShell />}>
+        <Route path="/" element={<Navigate to="/tickets" replace />} />
+        <Route path="/tickets" element={<MyTicketsPage />} />
+        <Route path="/tickets/new" element={<CreateTicketPage />} />
+        <Route path="/tickets/:id" element={<TicketDetailPage />} />
+        <Route path="*" element={<Navigate to="/tickets" replace />} />
+      </Route>
+    </Routes>
+  );
+}
 
-      <button className="btn btn-success" onClick={handleCheck} disabled={state === "loading"}>
-        {state === "loading" ? "Loading…" : "Check System"}
-      </button>
-
-      {state === "success" && (
-        <div className="mt-4">
-          <p>
-            System Status: <strong className="text-success">Online</strong>
-          </p>
-          <p className="mb-1">Supported Request Categories:</p>
-          <ul>
-            {categories.map((category) => (
-              <li key={category.id}>{category.name}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {state === "error" && (
-        <div className="mt-4 text-danger">
-          <p>System Status: Offline</p>
-          <p>Unable to connect to TokTickIT API</p>
-        </div>
-      )}
-    </div>
+export default function App() {
+  return (
+    <BrowserRouter>
+      <RequesterProvider>
+        <Gate />
+      </RequesterProvider>
+    </BrowserRouter>
   );
 }

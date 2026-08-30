@@ -33,4 +33,22 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Issue 2-3 (Lab 2) — active Development Requesters, for the Selection screen.
+// api-spec.md §1: only isActive=true rows, ordered by id. Inactive Requesters
+// (BR-35) are never included.
+// ---------------------------------------------------------------------------
+app.get("/api/requesters", async (_req: Request, res: Response) => {
+  try {
+    const requesters = await getPrisma().requester.findMany({
+      where: { isActive: true },
+      orderBy: { id: "asc" },
+      select: { id: true, name: true, email: true },
+    });
+    res.status(200).json(requesters);
+  } catch {
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to retrieve development requesters." } });
+  }
+});
+
 export default app;
