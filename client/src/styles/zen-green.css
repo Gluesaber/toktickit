@@ -1,0 +1,59 @@
+/* Zen Green Theme tokens — docs/lab-02/ui-spec.md §1.1. Reused by every Lab 2 screen; later
+   labs must reuse these rather than introducing a new visual system. */
+:root {
+  --zg-primary: #006b3c;
+  --zg-secondary: #0b7a46;
+  --zg-pale: #eaf6ef;
+  --zg-bg: #f5f7f6;
+  --zg-surface: #ffffff;
+  --zg-border: #d8e2de;
+  --zg-text: #1f2a24;
+  --zg-text-muted: #5b6b63;
+  --zg-field-editable-bg: #ffffff;
+  --zg-field-editable-border: #c7d1cc;
+  --zg-field-readonly-bg: #edf2ee;
+  --zg-field-readonly-text: #3e4a44;
+  --zg-error: #b3261e;
+  --zg-error-bg: #fbeae9;
+  --zg-warning: #8a5a00;
+  --zg-warning-bg: #fff3cd;
+  --zg-success-text: #0b7a46;
+}
+
+body {
+  background-color: var(--zg-bg);
+  color: var(--zg-text);
+}
+
+.app-header {
+  background-color: var(--zg-primary);
+}
+
+.app-nav-link {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.25rem;
+  font-weight: 500;
+}
+
+.app-nav-link:hover,
+.app-nav-link:focus-visible {
+  color: #ffffff;
+}
+
+.app-nav-link.active {
+  background-color: var(--zg-secondary);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.requester-chip {
+  background-color: var(--zg-pale);
+  color: var(--zg-primary);
+  border-radius: 999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
