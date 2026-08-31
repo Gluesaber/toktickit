@@ -91,7 +91,7 @@ export default function DevRequesterSelector() {
               </select>
               <button
                 type="button"
-                className="btn btn-success w-100"
+                className="btn btn-zg-primary w-100"
                 disabled={selectedId === ""}
                 onClick={handleContinue}
               >
