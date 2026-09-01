@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ApiError,
@@ -8,12 +8,16 @@ import {
   createTicket,
   getCategories,
   getRelatedSystems,
+  uploadAttachment,
 } from "../api.js";
 import { useRequester } from "../context/RequesterContext.js";
+import { validateAttachmentFile } from "../attachmentValidation.js";
 
 // Issue 2-4 (Lab 2) — Create Ticket screen. docs/lab-02/ui-spec.md §4, docs/lab-02/specification.md
-// BR-19/BR-20/BR-21/BR-24/BR-25. Attachments are an inert placeholder here — real upload UI lands
-// in Issue 2-7 once POST /api/tickets/:id/attachments exists.
+// BR-19/BR-20/BR-21/BR-24/BR-25.
+// Issue 2-7 (Lab 2) — real attachment picker. Per api-spec.md §2's two-step design, selected files
+// are only staged client-side until the Ticket itself is created; they upload afterward, so a
+// failed attachment upload never blocks or loses the Ticket (BR-26).
 const SUMMARY_MIN = 5;
 const SUMMARY_MAX = 120;
 const DESCRIPTION_MIN = 10;
@@ -22,6 +26,14 @@ const PRIORITIES: Priority[] = ["LOW", "MEDIUM", "HIGH", "URGENT"];
 
 type RefDataState = "loading" | "ready" | "failure";
 type SubmitState = "idle" | "submitting" | "success";
+type StagedFileStatus = "queued" | "uploading" | "uploaded" | "failed";
+
+interface StagedFile {
+  id: string;
+  file: File;
+  status: StagedFileStatus;
+  error?: string;
+}
 
 interface FormValues {
   categoryId: string;
@@ -62,6 +74,10 @@ function validate(values: FormValues): Record<string, string> {
   return errors;
 }
 
+function formatSize(bytes: number): string {
+  return `${(bytes / 1024).toFixed(0)} KB`;
+}
+
 export default function CreateTicketPage() {
   const { requester } = useRequester();
   const navigate = useNavigate();
@@ -76,6 +92,9 @@ export default function CreateTicketPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdTicketNumber, setCreatedTicketNumber] = useState<string | null>(null);
   const [createdTicketId, setCreatedTicketId] = useState<number | null>(null);
+
+  const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
 
   async function loadReferenceData() {
     setRefDataState("loading");
@@ -96,6 +115,47 @@ export default function CreateTicketPage() {
 
   function updateField<K extends keyof FormValues>(key: K, value: FormValues[K]) {
     setValues((prev) => ({ ...prev, [key]: value }));
+  }
+
+  // AC-07/AC-08/AC-09: client-side type/size/count checks run before any network call, and a
+  // rejected file never enters the staged list.
+  function handleFileSelect(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    const error = validateAttachmentFile(file, stagedFiles.length);
+    if (error) {
+      setAttachmentError(error);
+      return;
+    }
+    setAttachmentError(null);
+    setStagedFiles((prev) => [...prev, { id: crypto.randomUUID(), file, status: "queued" }]);
+  }
+
+  function removeStagedFile(id: string) {
+    setStagedFiles((prev) => prev.filter((f) => f.id !== id));
+  }
+
+  async function uploadOneStagedFile(staged: StagedFile, ticketId: number, requesterId: number) {
+    setStagedFiles((prev) => prev.map((f) => (f.id === staged.id ? { ...f, status: "uploading" } : f)));
+    try {
+      await uploadAttachment(ticketId, requesterId, staged.file);
+      setStagedFiles((prev) => prev.map((f) => (f.id === staged.id ? { ...f, status: "uploaded" } : f)));
+    } catch (err) {
+      setStagedFiles((prev) =>
+        prev.map((f) =>
+          f.id === staged.id
+            ? { ...f, status: "failed", error: err instanceof ApiError ? err.message : "Upload failed." }
+            : f
+        )
+      );
+    }
+  }
+
+  function retryStagedFile(staged: StagedFile) {
+    if (!createdTicketId || !requester) return;
+    uploadOneStagedFile(staged, createdTicketId, requester.id);
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -122,6 +182,13 @@ export default function CreateTicketPage() {
       setCreatedTicketNumber(ticket.ticketNumber);
       setCreatedTicketId(ticket.id);
       setSubmitState("success");
+
+      // Two-step design: the Ticket is already saved at this point (AC-01), so a failure here
+      // only affects that one attachment row, never the Ticket itself (BR-26, BR-34). Uploads run
+      // sequentially so the 5-active-attachment count each one checks stays accurate.
+      for (const staged of stagedFiles) {
+        await uploadOneStagedFile(staged, ticket.id, requester.id);
+      }
     } catch (err) {
       // BR-24/BR-25: field values are left exactly as typed — `values` state is untouched here.
       setSubmitState("idle");
@@ -140,8 +207,69 @@ export default function CreateTicketPage() {
     setSubmitError(null);
     setCreatedTicketNumber(null);
     setCreatedTicketId(null);
+    setStagedFiles([]);
+    setAttachmentError(null);
     setSubmitState("idle");
   }
+
+  const attachmentPicker = (
+    <div className="mb-4">
+      <label className="form-label fw-semibold">Attachments</label>
+
+      {stagedFiles.length > 0 && (
+        <ul className="list-unstyled mb-2">
+          {stagedFiles.map((f) => (
+            <li key={f.id} className="d-flex justify-content-between align-items-center py-1">
+              <span>
+                {f.file.name} <span className="text-muted small">({formatSize(f.file.size)})</span>
+                {f.status === "uploading" && <span className="text-muted small ms-2">Uploading…</span>}
+                {f.status === "uploaded" && <span className="text-success small ms-2">Uploaded</span>}
+                {f.status === "failed" && (
+                  <span className="text-danger small ms-2">
+                    Upload failed{f.error ? `: ${f.error}` : ""}
+                  </span>
+                )}
+              </span>
+              {f.status === "queued" && submitState === "idle" && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-link text-danger p-0"
+                  aria-label={`Remove ${f.file.name}`}
+                  onClick={() => removeStagedFile(f.id)}
+                >
+                  Remove
+                </button>
+              )}
+              {f.status === "failed" && (
+                <button type="button" className="btn btn-sm btn-link p-0" onClick={() => retryStagedFile(f)}>
+                  Retry
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {attachmentError && (
+        <div className="text-danger small mb-2" role="alert">
+          {attachmentError}
+        </div>
+      )}
+
+      {submitState !== "success" && (
+        <label className="btn btn-outline-secondary btn-sm mb-0">
+          Add file
+          <input
+            type="file"
+            className="d-none"
+            accept=".jpg,.jpeg,.png,.webp,.pdf"
+            disabled={submitState === "submitting"}
+            onChange={handleFileSelect}
+          />
+        </label>
+      )}
+    </div>
+  );
 
   if (submitState === "success" && createdTicketNumber) {
     return (
@@ -152,6 +280,9 @@ export default function CreateTicketPage() {
           </div>
           <p className="text-muted mb-1">Your Ticket Number</p>
           <p className="h4 mb-4">{createdTicketNumber}</p>
+
+          {stagedFiles.length > 0 && <div className="text-start mb-4">{attachmentPicker}</div>}
+
           <div className="d-flex gap-2 justify-content-center">
             <button
               type="button"
@@ -328,17 +459,7 @@ export default function CreateTicketPage() {
           {fieldErrors.description && <div className="invalid-feedback d-block">{fieldErrors.description}</div>}
         </div>
 
-        {/* Attachments — inert placeholder until Issue 2-7 implements upload. */}
-        <div className="mb-4">
-          <label className="form-label fw-semibold">Attachments</label>
-          <div
-            className="border rounded p-3 text-muted"
-            style={{ backgroundColor: "var(--zg-field-readonly-bg)" }}
-            aria-disabled="true"
-          >
-            Attachments will be available once Issue 2-7 is implemented.
-          </div>
-        </div>
+        {attachmentPicker}
 
         <div className="d-flex gap-2 justify-content-end">
           <button

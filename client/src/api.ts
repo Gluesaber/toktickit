@@ -191,8 +191,8 @@ export async function getTicket(id: number, requesterId: number): Promise<Ticket
   return res.json();
 }
 
-// Issue 2-4 (Lab 2) — create a Ticket (AC-01). Attachments are handled separately by Issue 2-7,
-// per the two-step design documented in api-spec.md §2.
+// Issue 2-4 (Lab 2) — create a Ticket (AC-01). Attachments are uploaded separately by Issue 2-7's
+// functions below, per the two-step design documented in api-spec.md §2.
 export async function createTicket(input: CreateTicketInput): Promise<Ticket> {
   const res = await fetch(`${API_URL}/api/tickets`, {
     method: "POST",
@@ -201,4 +201,40 @@ export async function createTicket(input: CreateTicketInput): Promise<Ticket> {
   });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
+}
+
+// Issue 2-7 (Lab 2) — add an Attachment to an owned Ticket (AC-06, AC-25, BR-27–BR-30).
+export async function uploadAttachment(ticketId: number, requesterId: number, file: File): Promise<Attachment> {
+  const formData = new FormData();
+  formData.append("requesterId", String(requesterId));
+  formData.append("file", file);
+  const res = await fetch(`${API_URL}/api/tickets/${ticketId}/attachments`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// Issue 2-7 (Lab 2) — soft-remove an owned, active Attachment (AC-26, BR-31).
+export async function removeAttachment(
+  attachmentId: number,
+  requesterId: number,
+  reason?: string
+): Promise<Attachment> {
+  const res = await fetch(`${API_URL}/api/attachments/${attachmentId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ requesterId, reason }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// Issue 2-7 (Lab 2) — download URL for an active Attachment (AC-22). Rendered as a plain <a href>
+// so the browser handles the download directly via the server's Content-Disposition header,
+// rather than fetching the bytes through JS.
+export function getAttachmentDownloadUrl(attachmentId: number, requesterId: number): string {
+  const params = new URLSearchParams({ requesterId: String(requesterId) });
+  return `${API_URL}/api/attachments/${attachmentId}/download?${params.toString()}`;
 }
