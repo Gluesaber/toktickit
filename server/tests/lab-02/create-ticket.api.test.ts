@@ -39,12 +39,16 @@ function validPayload(overrides: Record<string, unknown> = {}) {
 }
 
 // API-09 (Issue 2-3) — BR-07, BR-35: inactive Requesters never appear.
+// Asserts presence/absence rather than an exact array length: other test files create their own
+// (later-deactivated) fixture Requesters against this same shared dev DB, so the total active
+// count isn't stable across the whole suite — only which specific seeded ones show up is.
 describe("GET /api/requesters", () => {
   it("returns only active development requesters, excluding the inactive seed", async () => {
     const res = await request(app).get("/api/requesters");
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(4);
-    expect(res.body.map((r: { name: string }) => r.name)).not.toContain("Sam Whitfield");
+    const names = res.body.map((r: { name: string }) => r.name);
+    expect(names).toEqual(expect.arrayContaining(["Alex Rivera", "Priya Nair", "Jordan Lee", "Morgan Chen"]));
+    expect(names).not.toContain("Sam Whitfield");
     for (const requester of res.body) {
       expect(requester).toMatchObject({
         id: expect.any(Number),

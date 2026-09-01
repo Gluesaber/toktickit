@@ -105,3 +105,55 @@ body {
   font-weight: 600;
   white-space: nowrap;
 }
+
+/* Priority / status badges — ui-spec.md §1.5. */
+.zg-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.zg-badge-priority-low {
+  background-color: var(--zg-pale);
+  color: var(--zg-secondary);
+}
+
+.zg-badge-priority-medium {
+  background-color: var(--zg-warning-bg);
+  color: var(--zg-warning);
+}
+
+.zg-badge-priority-high {
+  background-color: #fde6d8;
+  color: #9a3412;
+}
+
+.zg-badge-priority-urgent {
+  background-color: var(--zg-error-bg);
+  color: var(--zg-error);
+}
+
+.zg-badge-status-new {
+  background-color: var(--zg-pale);
+  color: var(--zg-primary);
+}
+
+.zg-badge-status-other {
+  background-color: var(--zg-field-readonly-bg);
+  color: var(--zg-text-muted);
+}
+
+/* My Tickets — mobile card list, shown instead of the table below md (ui-spec.md §5.1). */
+.ticket-card {
+  border: 1px solid var(--zg-border);
+  border-radius: 0.5rem;
+  background-color: var(--zg-surface);
+  padding: 1rem;
+}
+
+.ticket-card + .ticket-card {
+  margin-top: 0.75rem;
+}

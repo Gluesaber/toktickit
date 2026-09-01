@@ -32,6 +32,48 @@ export interface Ticket {
   updatedAt: string;
 }
 
+export interface TicketListItem {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  categoryName: string;
+  relatedSystemName: string;
+  requestedPriority: Priority;
+  currentStatus: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaginationMeta {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface TicketListResponse {
+  data: TicketListItem[];
+  pagination: PaginationMeta;
+}
+
+export type SortField = "createdAt" | "ticketNumber" | "currentStatus" | "requestedPriority";
+export type SortDir = "asc" | "desc";
+
+export interface TicketListQuery {
+  requesterId: number;
+  search?: string;
+  categoryId?: number;
+  relatedSystemId?: number;
+  priority?: Priority;
+  status?: string;
+  sortBy?: SortField;
+  sortDir?: SortDir;
+  page?: number;
+  pageSize?: number;
+}
+
 export interface CreateTicketInput {
   requesterId: number;
   categoryId: number;
@@ -90,6 +132,26 @@ export async function getRelatedSystems(): Promise<RelatedSystem[]> {
 // Issue 2-3 (Lab 2) — active Development Requesters for the Selection screen (BR-07, BR-35).
 export async function getRequesters(): Promise<Requester[]> {
   const res = await fetch(`${API_URL}/api/requesters`);
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// Issue 2-5 (Lab 2) — the current Requester's ticket list: search/filter/sort/pagination.
+// api-spec.md §4 is the exact query contract.
+export async function getTickets(query: TicketListQuery): Promise<TicketListResponse> {
+  const params = new URLSearchParams();
+  params.set("requesterId", String(query.requesterId));
+  if (query.search) params.set("search", query.search);
+  if (query.categoryId !== undefined) params.set("categoryId", String(query.categoryId));
+  if (query.relatedSystemId !== undefined) params.set("relatedSystemId", String(query.relatedSystemId));
+  if (query.priority) params.set("priority", query.priority);
+  if (query.status) params.set("status", query.status);
+  if (query.sortBy) params.set("sortBy", query.sortBy);
+  if (query.sortDir) params.set("sortDir", query.sortDir);
+  if (query.page !== undefined) params.set("page", String(query.page));
+  if (query.pageSize !== undefined) params.set("pageSize", String(query.pageSize));
+
+  const res = await fetch(`${API_URL}/api/tickets?${params.toString()}`);
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }
