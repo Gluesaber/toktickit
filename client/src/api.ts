@@ -74,6 +74,32 @@ export interface TicketListQuery {
   pageSize?: number;
 }
 
+export interface Attachment {
+  id: number;
+  originalFileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  uploadedAt: string;
+  removedAt: string | null;
+  removalReason: string | null;
+  active: boolean;
+}
+
+export interface TicketDetail {
+  id: number;
+  ticketNumber: string;
+  requester: Requester;
+  category: Category;
+  relatedSystem: RelatedSystem;
+  summary: string;
+  description: string;
+  requestedPriority: Priority;
+  currentStatus: string;
+  createdAt: string;
+  updatedAt: string;
+  attachments: Attachment[];
+}
+
 export interface CreateTicketInput {
   requesterId: number;
   categoryId: number;
@@ -152,6 +178,15 @@ export async function getTickets(query: TicketListQuery): Promise<TicketListResp
   if (query.pageSize !== undefined) params.set("pageSize", String(query.pageSize));
 
   const res = await fetch(`${API_URL}/api/tickets?${params.toString()}`);
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// Issue 2-6 (Lab 2) — one owned Ticket + its Attachments, for Ticket Detail. Nonexistent and
+// not-owned both surface as the same ApiError (code NOT_FOUND) — BR-12, BR-40, AC-21.
+export async function getTicket(id: number, requesterId: number): Promise<TicketDetail> {
+  const params = new URLSearchParams({ requesterId: String(requesterId) });
+  const res = await fetch(`${API_URL}/api/tickets/${id}?${params.toString()}`);
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }
