@@ -316,4 +316,56 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Issue 2-6 (Lab 2) — one owned Ticket + its Attachments, for Ticket Detail.
+// api-spec.md "GET /api/tickets/:id": doesn't-exist and not-owned return the identical 404
+// (BR-12, BR-40, AC-21) so a foreign-ticket probe can't distinguish the two — achieved here by
+// putting both `id` and `requesterId` in the same `findFirst` `where` clause, rather than
+// checking existence and ownership as two separate queries with two separate failure paths.
+// ---------------------------------------------------------------------------
+app.get("/api/tickets/:id", async (req: Request, res: Response) => {
+  const prisma = getPrisma();
+  const requesterId = Number(req.query.requesterId);
+  if (!Number.isInteger(requesterId)) {
+    return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
+  }
+
+  const ticketId = Number(req.params.id);
+
+  try {
+    const ticket = await prisma.ticket.findFirst({
+      where: { id: ticketId, requesterId },
+      include: {
+        requester: { select: { id: true, name: true, email: true } },
+        category: { select: { id: true, name: true } },
+        relatedSystem: { select: { id: true, name: true } },
+        attachments: { orderBy: { uploadedAt: "asc" } },
+      },
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+    }
+
+    // api-spec.md's shape nests requester/category/relatedSystem as objects and doesn't repeat
+    // the raw foreign-key columns alongside them, so those are left out here.
+    const { attachments, requesterId: _requesterId, categoryId: _categoryId, relatedSystemId: _relatedSystemId, ...rest } = ticket;
+    res.status(200).json({
+      ...rest,
+      attachments: attachments.map((a) => ({
+        id: a.id,
+        originalFileName: a.originalFileName,
+        mimeType: a.mimeType,
+        fileSizeBytes: a.fileSizeBytes,
+        uploadedAt: a.uploadedAt,
+        removedAt: a.removedAt,
+        removalReason: a.removalReason,
+        active: a.removedAt === null,
+      })),
+    });
+  } catch {
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to retrieve the ticket." } });
+  }
+});
+
 export default app;
