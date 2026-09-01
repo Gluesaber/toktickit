@@ -6,7 +6,7 @@ import MyTicketsPage from "../../src/pages/MyTicketsPage.js";
 import { RequesterProvider } from "../../src/context/RequesterContext.js";
 import App from "../../src/App.js";
 import * as api from "../../src/api.js";
-import type { TicketListResponse } from "../../src/api.js";
+import type { TicketListItem, TicketListResponse } from "../../src/api.js";
 
 const CATEGORIES = [{ id: 1, name: "Hardware" }];
 const RELATED_SYSTEMS = [{ id: 1, name: "Corporate Laptop" }];
@@ -44,7 +44,7 @@ function emptyResponse(overrides: Partial<TicketListResponse["pagination"]> = {}
   };
 }
 
-function makeTicket(overrides: Record<string, unknown> = {}) {
+function makeTicket(overrides: Partial<TicketListItem> = {}): TicketListItem {
   return {
     id: 1,
     ticketNumber: "TK-2026-000001",

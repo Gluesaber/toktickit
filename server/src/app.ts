@@ -106,21 +106,24 @@ app.get("/api/tickets", async (req: Request, res: Response) => {
     if (!Number.isInteger(relatedSystemId)) fields.relatedSystemId = "relatedSystemId must be a number.";
   }
 
+  // api-spec.md §4: filter params reuse the exact Ticket field names (requestedPriority,
+  // currentStatus), not shorter aliases, so the same name means the same thing in the request
+  // body, sortBy values, and filter params alike.
   let priority: Priority | undefined;
-  if (typeof q.priority === "string" && q.priority !== "") {
-    if (!VALID_PRIORITIES.includes(q.priority as Priority)) {
-      fields.priority = "Invalid priority value.";
+  if (typeof q.requestedPriority === "string" && q.requestedPriority !== "") {
+    if (!VALID_PRIORITIES.includes(q.requestedPriority as Priority)) {
+      fields.requestedPriority = "Invalid requestedPriority value.";
     } else {
-      priority = q.priority as Priority;
+      priority = q.requestedPriority as Priority;
     }
   }
 
   let status: TicketStatus | undefined;
-  if (typeof q.status === "string" && q.status !== "") {
-    if (!VALID_STATUSES.includes(q.status as TicketStatus)) {
-      fields.status = "Invalid status value.";
+  if (typeof q.currentStatus === "string" && q.currentStatus !== "") {
+    if (!VALID_STATUSES.includes(q.currentStatus as TicketStatus)) {
+      fields.currentStatus = "Invalid currentStatus value.";
     } else {
-      status = q.status as TicketStatus;
+      status = q.currentStatus as TicketStatus;
     }
   }
 

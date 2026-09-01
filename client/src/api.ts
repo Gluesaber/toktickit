@@ -66,8 +66,8 @@ export interface TicketListQuery {
   search?: string;
   categoryId?: number;
   relatedSystemId?: number;
-  priority?: Priority;
-  status?: string;
+  requestedPriority?: Priority;
+  currentStatus?: string;
   sortBy?: SortField;
   sortDir?: SortDir;
   page?: number;
@@ -144,8 +144,8 @@ export async function getTickets(query: TicketListQuery): Promise<TicketListResp
   if (query.search) params.set("search", query.search);
   if (query.categoryId !== undefined) params.set("categoryId", String(query.categoryId));
   if (query.relatedSystemId !== undefined) params.set("relatedSystemId", String(query.relatedSystemId));
-  if (query.priority) params.set("priority", query.priority);
-  if (query.status) params.set("status", query.status);
+  if (query.requestedPriority) params.set("requestedPriority", query.requestedPriority);
+  if (query.currentStatus) params.set("currentStatus", query.currentStatus);
   if (query.sortBy) params.set("sortBy", query.sortBy);
   if (query.sortDir) params.set("sortDir", query.sortDir);
   if (query.page !== undefined) params.set("page", String(query.page));

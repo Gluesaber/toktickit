@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import CreateTicketPage from "../../src/pages/CreateTicketPage.js";
 import { RequesterProvider } from "../../src/context/RequesterContext.js";
 import * as api from "../../src/api.js";
-import { ApiError } from "../../src/api.js";
+import { ApiError, Ticket } from "../../src/api.js";
 
 const CATEGORIES = [{ id: 1, name: "Hardware" }];
 const RELATED_SYSTEMS = [{ id: 1, name: "Corporate Laptop" }];
@@ -76,11 +76,11 @@ describe("CreateTicketPage", () => {
 
   // UI-06 (AC-11)
   it("shows a busy state on Submit while the request is in flight", async () => {
-    let resolveCreate: (value: unknown) => void = () => {};
+    let resolveCreate: (ticket: Ticket) => void = () => {};
     vi.spyOn(api, "createTicket").mockReturnValue(
-      new Promise((resolve) => {
+      new Promise<Ticket>((resolve) => {
         resolveCreate = resolve;
-      }) as ReturnType<typeof api.createTicket>
+      })
     );
     const user = userEvent.setup();
     renderPage();
