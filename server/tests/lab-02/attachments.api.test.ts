@@ -11,6 +11,7 @@ let ownerId: number;
 let otherOwnerId: number;
 let ticketId: number;
 let limitTestTicketId: number;
+let concurrencyTestTicketId: number;
 
 async function uploadValidFile(overrides: { requesterId?: number; ticket?: number } = {}) {
   return request(app)
@@ -54,6 +55,16 @@ beforeAll(async () => {
     requestedPriority: "LOW",
   });
   limitTestTicketId = limitCreateRes.body.id;
+
+  const concurrencyCreateRes = await request(app).post("/api/tickets").send({
+    requesterId: ownerId,
+    categoryId: category.id,
+    relatedSystemId: relatedSystem.id,
+    summary: "Fixture ticket for attachment-race-condition test",
+    description: "Fixture ticket description for attachment-race-condition test, long enough.",
+    requestedPriority: "LOW",
+  });
+  concurrencyTestTicketId = concurrencyCreateRes.body.id;
 
   await prisma.requester.updateMany({
     where: { id: { in: [ownerId, otherOwnerId] } },
@@ -206,5 +217,75 @@ describe("DELETE /api/attachments/:id", () => {
       .delete(`/api/attachments/${uploadRes.body.id}`)
       .send({ requesterId: otherOwnerId });
     expect(res.status).toBe(404);
+  });
+});
+
+// Regression tests for the PR #26 review findings.
+describe("PR #26 review fixes", () => {
+  // Finding 1 — a malformed (non-numeric) :id previously reached Prisma as NaN and threw,
+  // surfacing as 500 INTERNAL_ERROR instead of a clean 404.
+  describe("malformed :id path params", () => {
+    it("POST /api/tickets/:id/attachments returns 404, not 500", async () => {
+      const res = await request(app)
+        .post("/api/tickets/not-a-number/attachments")
+        .field("requesterId", String(ownerId))
+        .attach("file", Buffer.from("fake jpeg bytes"), { filename: "photo.jpg", contentType: "image/jpeg" });
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe("NOT_FOUND");
+    });
+
+    it("GET /api/tickets/:id/attachments returns 404, not 500", async () => {
+      const res = await request(app)
+        .get("/api/tickets/not-a-number/attachments")
+        .query({ requesterId: ownerId });
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe("NOT_FOUND");
+    });
+
+    it("GET /api/attachments/:id/download returns 404, not 500", async () => {
+      const res = await request(app)
+        .get("/api/attachments/not-a-number/download")
+        .query({ requesterId: ownerId });
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe("NOT_FOUND");
+    });
+
+    it("DELETE /api/attachments/:id returns 404, not 500", async () => {
+      const res = await request(app)
+        .delete("/api/attachments/not-a-number")
+        .send({ requesterId: ownerId });
+      expect(res.status).toBe(404);
+      expect(res.body.error.code).toBe("NOT_FOUND");
+    });
+  });
+
+  // Finding 3 — extension and MIME type must correspond as a real pair, not just each
+  // independently belong to its own allowed list.
+  it("rejects a mismatched extension/MIME-type pair even though each is individually allowed", async () => {
+    const res = await request(app)
+      .post(`/api/tickets/${ticketId}/attachments`)
+      .field("requesterId", String(ownerId))
+      .attach("file", Buffer.from("not really a pdf"), { filename: "report.pdf", contentType: "image/png" });
+    expect(res.status).toBe(415);
+    expect(res.body.error.code).toBe("UNSUPPORTED_FILE_TYPE");
+  });
+
+  // Finding 2 — count-then-create was non-transactional, so concurrent uploads to the same
+  // Ticket could both pass the 5-active check and exceed BR-29's cap. Fires 8 uploads at once and
+  // asserts the cap holds exactly, proving the transaction + row lock actually serializes them.
+  it("enforces the 5-active-attachment cap exactly under concurrent uploads", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 8 }, () => uploadValidFile({ ticket: concurrencyTestTicketId }))
+    );
+    const succeeded = results.filter((r) => r.status === 201);
+    const limitReached = results.filter((r) => r.status === 409 && r.body.error.code === "ATTACHMENT_LIMIT_REACHED");
+
+    expect(succeeded).toHaveLength(5);
+    expect(limitReached).toHaveLength(3);
+
+    const finalCount = await request(app)
+      .get(`/api/tickets/${concurrencyTestTicketId}/attachments`)
+      .query({ requesterId: ownerId });
+    expect(finalCount.body.filter((a: { active: boolean }) => a.active)).toHaveLength(5);
   });
 });

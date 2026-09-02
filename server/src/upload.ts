@@ -14,14 +14,22 @@ fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 export const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // BR-28
 export const MAX_ACTIVE_ATTACHMENTS = 5; // BR-29
 
-// BR-27: allowed types are enforced by *both* extension and MIME type, not either alone — a
-// mismatched pair (e.g. a renamed .exe with a spoofed image/png header) is rejected.
-const ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".pdf"]);
-const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+// BR-27: allowed types are enforced by *both* extension and MIME type, and the pair must
+// correspond — not just each independently belonging to its own allowed set. PR #26 review: the
+// previous two-independent-Set check let e.g. "report.pdf" through with mimeType "image/png",
+// since ".pdf" and "image/png" were each individually allowed even though that's not a real pair.
+const EXTENSION_TO_MIME_TYPES: Record<string, string[]> = {
+  ".jpg": ["image/jpeg"],
+  ".jpeg": ["image/jpeg"],
+  ".png": ["image/png"],
+  ".webp": ["image/webp"],
+  ".pdf": ["application/pdf"],
+};
 
 export function isAllowedAttachment(originalName: string, mimeType: string): boolean {
   const ext = path.extname(originalName).toLowerCase();
-  return ALLOWED_EXTENSIONS.has(ext) && ALLOWED_MIME_TYPES.has(mimeType);
+  const expectedMimeTypes = EXTENSION_TO_MIME_TYPES[ext];
+  return expectedMimeTypes !== undefined && expectedMimeTypes.includes(mimeType);
 }
 
 const storage = multer.diskStorage({

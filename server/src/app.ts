@@ -29,6 +29,24 @@ type AttachmentRecord = {
   removalReason: string | null;
 };
 
+// PR #26 review — a non-numeric `:id` (e.g. `/api/tickets/abc`) previously reached Prisma as
+// `NaN`, which throws rather than matching zero rows, surfacing as a misleading `500
+// INTERNAL_ERROR` instead of `404`. Every route with an `:id`/`:ticketId` param parses it through
+// this first, so a malformed id gets the same "not found" treatment as a well-formed one that
+// doesn't exist (consistent with BR-12's existing doesn't-exist/not-owned-are-identical design —
+// no new status code or doc change needed).
+function parseRouteId(raw: string): number | null {
+  const id = Number(raw);
+  return Number.isInteger(id) ? id : null;
+}
+
+// PR #26 review — BR-29's 5-active-attachment cap was checked (`count`) and enforced (`create`)
+// as two separate, non-transactional queries, so two concurrent uploads for the same Ticket could
+// both read a count under the limit and both insert, exceeding 5. Thrown inside the
+// `$transaction` in the upload route below (see there) to roll back the insert without leaking a
+// generic 500 for what is really a 409.
+class AttachmentLimitReachedError extends Error {}
+
 function formatAttachment(a: AttachmentRecord) {
   return {
     id: a.id,
@@ -360,7 +378,10 @@ app.get("/api/tickets/:id", async (req: Request, res: Response) => {
     return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
   }
 
-  const ticketId = Number(req.params.id);
+  const ticketId = parseRouteId(req.params.id);
+  if (ticketId === null) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+  }
 
   try {
     const ticket = await prisma.ticket.findFirst({
@@ -419,7 +440,7 @@ app.post("/api/tickets/:id/attachments", (req: Request, res: Response) => {
 
     const prisma = getPrisma();
     const requesterId = Number(req.body.requesterId);
-    const ticketId = Number(req.params.id);
+    const ticketId = parseRouteId(req.params.id);
 
     if (!req.file) {
       return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A file is required." } });
@@ -427,6 +448,10 @@ app.post("/api/tickets/:id/attachments", (req: Request, res: Response) => {
     if (!Number.isInteger(requesterId)) {
       await cleanupOrphanedFile();
       return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
+    }
+    if (ticketId === null) {
+      await cleanupOrphanedFile();
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
     }
 
     try {
@@ -439,27 +464,36 @@ app.post("/api/tickets/:id/attachments", (req: Request, res: Response) => {
         return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
       }
 
-      const activeCount = await prisma.attachment.count({ where: { ticketId, removedAt: null } });
-      if (activeCount >= MAX_ACTIVE_ATTACHMENTS) {
-        await cleanupOrphanedFile();
+      // PR #26 review — count-then-create was two separate, non-transactional queries, letting
+      // concurrent uploads both pass the check and exceed BR-29's 5-active cap. `FOR UPDATE` locks
+      // this Ticket's row for the duration of the transaction, so a second concurrent upload for
+      // the *same* Ticket blocks until the first commits and re-counts against the now-current
+      // state — uploads to different Tickets are untouched, no global serialization.
+      const attachment = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Ticket" WHERE id = ${ticketId} FOR UPDATE`;
+        const activeCount = await tx.attachment.count({ where: { ticketId, removedAt: null } });
+        if (activeCount >= MAX_ACTIVE_ATTACHMENTS) {
+          throw new AttachmentLimitReachedError();
+        }
+        return tx.attachment.create({
+          data: {
+            ticketId,
+            originalFileName: req.file!.originalname,
+            storedFileName: req.file!.filename,
+            mimeType: req.file!.mimetype,
+            fileSizeBytes: req.file!.size,
+          },
+        });
+      });
+
+      res.status(201).json(formatAttachment(attachment));
+    } catch (err) {
+      await cleanupOrphanedFile();
+      if (err instanceof AttachmentLimitReachedError) {
         return res.status(409).json({
           error: { code: "ATTACHMENT_LIMIT_REACHED", message: "This ticket already has 5 active attachments." },
         });
       }
-
-      const attachment = await prisma.attachment.create({
-        data: {
-          ticketId,
-          originalFileName: req.file.originalname,
-          storedFileName: req.file.filename,
-          mimeType: req.file.mimetype,
-          fileSizeBytes: req.file.size,
-        },
-      });
-
-      res.status(201).json(formatAttachment(attachment));
-    } catch {
-      await cleanupOrphanedFile();
       res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to upload the attachment." } });
     }
   });
@@ -475,7 +509,10 @@ app.get("/api/tickets/:id/attachments", async (req: Request, res: Response) => {
   if (!Number.isInteger(requesterId)) {
     return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
   }
-  const ticketId = Number(req.params.id);
+  const ticketId = parseRouteId(req.params.id);
+  if (ticketId === null) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+  }
 
   try {
     const ticket = await prisma.ticket.findFirst({
@@ -504,7 +541,10 @@ app.get("/api/attachments/:id/download", async (req: Request, res: Response) => 
   if (!Number.isInteger(requesterId)) {
     return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
   }
-  const attachmentId = Number(req.params.id);
+  const attachmentId = parseRouteId(req.params.id);
+  if (attachmentId === null) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "Attachment not found." } });
+  }
 
   try {
     const attachment = await prisma.attachment.findFirst({
@@ -541,8 +581,11 @@ app.delete("/api/attachments/:id", async (req: Request, res: Response) => {
   if (!Number.isInteger(requesterId)) {
     return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
   }
-  const attachmentId = Number(req.params.id);
+  const attachmentId = parseRouteId(req.params.id);
   const reason = typeof req.body.reason === "string" && req.body.reason.trim() ? req.body.reason.trim() : null;
+  if (attachmentId === null) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "Attachment not found." } });
+  }
 
   try {
     const attachment = await prisma.attachment.findFirst({
