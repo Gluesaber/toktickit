@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import request from "supertest";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { app } from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
+import { UPLOAD_DIR } from "../../src/upload.js";
 
 // Requires the DB to be migrated and seeded first (see server/prisma/seed.ts).
 // Uses a dedicated fixture Requester + Ticket (deactivated after setup), same pattern as
@@ -12,6 +15,8 @@ let otherOwnerId: number;
 let ticketId: number;
 let limitTestTicketId: number;
 let concurrencyTestTicketId: number;
+let downloadTestTicketId: number;
+let deleteTestTicketId: number;
 
 async function uploadValidFile(overrides: { requesterId?: number; ticket?: number } = {}) {
   return request(app)
@@ -34,37 +39,29 @@ beforeAll(async () => {
   const category = await prisma.category.findFirstOrThrow({ where: { isActive: true } });
   const relatedSystem = await prisma.relatedSystem.findFirstOrThrow({ where: { isActive: true } });
 
-  const createRes = await request(app).post("/api/tickets").send({
-    requesterId: ownerId,
-    categoryId: category.id,
-    relatedSystemId: relatedSystem.id,
-    summary: "Fixture ticket for Attachment tests",
-    description: "Fixture ticket description for Attachment tests, long enough to pass validation.",
-    requestedPriority: "MEDIUM",
-  });
-  ticketId = createRes.body.id;
+  // Each test group below gets its own dedicated ticket rather than sharing one: the 5-active
+  // cap (BR-29) is now correctly enforced per-ticket (PR #26 review fix), so groups that each do
+  // several successful uploads would otherwise silently compete for the same 5-slot budget and
+  // trip the cap on each other once their combined total crosses it.
+  async function createFixtureTicket(summary: string): Promise<number> {
+    const res = await request(app).post("/api/tickets").send({
+      requesterId: ownerId,
+      categoryId: category.id,
+      relatedSystemId: relatedSystem.id,
+      summary,
+      description: `${summary} — long enough to pass validation.`,
+      requestedPriority: "LOW",
+    });
+    return res.body.id;
+  }
 
+  ticketId = await createFixtureTicket("Fixture ticket for Attachment tests");
   // Created here too, before deactivation below — POST /api/tickets requires an *active*
-  // requester (BR-21), so this must not be created lazily inside a later `it()` block.
-  const limitCreateRes = await request(app).post("/api/tickets").send({
-    requesterId: ownerId,
-    categoryId: category.id,
-    relatedSystemId: relatedSystem.id,
-    summary: "Fixture ticket for attachment-limit test",
-    description: "Fixture ticket description for attachment-limit test, long enough to pass.",
-    requestedPriority: "LOW",
-  });
-  limitTestTicketId = limitCreateRes.body.id;
-
-  const concurrencyCreateRes = await request(app).post("/api/tickets").send({
-    requesterId: ownerId,
-    categoryId: category.id,
-    relatedSystemId: relatedSystem.id,
-    summary: "Fixture ticket for attachment-race-condition test",
-    description: "Fixture ticket description for attachment-race-condition test, long enough.",
-    requestedPriority: "LOW",
-  });
-  concurrencyTestTicketId = concurrencyCreateRes.body.id;
+  // requester (BR-21), so none of these can be created lazily inside a later `it()` block.
+  limitTestTicketId = await createFixtureTicket("Fixture ticket for attachment-limit test");
+  concurrencyTestTicketId = await createFixtureTicket("Fixture ticket for attachment-race-condition test");
+  downloadTestTicketId = await createFixtureTicket("Fixture ticket for attachment-download tests");
+  deleteTestTicketId = await createFixtureTicket("Fixture ticket for attachment-delete tests");
 
   await prisma.requester.updateMany({
     where: { id: { in: [ownerId, otherOwnerId] } },
@@ -151,10 +148,10 @@ describe("GET /api/attachments/:id/download", () => {
   let removedAttachmentId: number;
 
   beforeEach(async () => {
-    const active = await uploadValidFile();
+    const active = await uploadValidFile({ ticket: downloadTestTicketId });
     expect(active.status).toBe(201); // fail loudly here, not as a confusing NaN-id 500 below
     activeAttachmentId = active.body.id;
-    const toRemove = await uploadValidFile();
+    const toRemove = await uploadValidFile({ ticket: downloadTestTicketId });
     expect(toRemove.status).toBe(201);
     removedAttachmentId = toRemove.body.id;
     await request(app).delete(`/api/attachments/${removedAttachmentId}`).send({ requesterId: ownerId });
@@ -184,12 +181,27 @@ describe("GET /api/attachments/:id/download", () => {
       .query({ requesterId: otherOwnerId });
     expect(res.status).toBe(404);
   });
+
+  // Data-integrity case: the DB row exists but its real file is gone from disk (e.g. manual
+  // cleanup, non-persistent storage). Distinguished from other download failures so the response
+  // doesn't tell the Requester to retry something that can never succeed.
+  it("returns ATTACHMENT_FILE_MISSING when the row exists but the file is gone from disk", async () => {
+    const prisma = getPrisma();
+    const attachment = await prisma.attachment.findUniqueOrThrow({ where: { id: activeAttachmentId } });
+    await fs.unlink(path.join(UPLOAD_DIR, attachment.storedFileName));
+
+    const res = await request(app)
+      .get(`/api/attachments/${activeAttachmentId}/download`)
+      .query({ requesterId: ownerId });
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe("ATTACHMENT_FILE_MISSING");
+  });
 });
 
 describe("DELETE /api/attachments/:id", () => {
   // API-17 (AC-26, BR-31)
   it("soft-removes an active attachment with a reason", async () => {
-    const uploadRes = await uploadValidFile();
+    const uploadRes = await uploadValidFile({ ticket: deleteTestTicketId });
     expect(uploadRes.status).toBe(201);
     const res = await request(app)
       .delete(`/api/attachments/${uploadRes.body.id}`)
@@ -201,7 +213,7 @@ describe("DELETE /api/attachments/:id", () => {
 
   // API-18
   it("rejects removing an already-removed attachment with 409 ALREADY_REMOVED", async () => {
-    const uploadRes = await uploadValidFile();
+    const uploadRes = await uploadValidFile({ ticket: deleteTestTicketId });
     expect(uploadRes.status).toBe(201);
     await request(app).delete(`/api/attachments/${uploadRes.body.id}`).send({ requesterId: ownerId });
 
@@ -211,7 +223,7 @@ describe("DELETE /api/attachments/:id", () => {
   });
 
   it("rejects removal from a non-owning Requester", async () => {
-    const uploadRes = await uploadValidFile();
+    const uploadRes = await uploadValidFile({ ticket: deleteTestTicketId });
     expect(uploadRes.status).toBe(201);
     const res = await request(app)
       .delete(`/api/attachments/${uploadRes.body.id}`)

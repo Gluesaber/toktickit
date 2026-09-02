@@ -560,10 +560,21 @@ app.get("/api/attachments/:id/download", async (req: Request, res: Response) => 
     }
 
     const filePath = path.join(UPLOAD_DIR, attachment.storedFileName);
-    res.download(filePath, attachment.originalFileName, (err) => {
-      if (err && !res.headersSent) {
-        res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to download the attachment." } });
+    res.download(filePath, attachment.originalFileName, (err: NodeJS.ErrnoException | undefined) => {
+      if (!err || res.headersSent) return;
+      // Still 500 (this is a server-side data integrity problem, not the caller's fault), but
+      // distinguished from other download failures: the file is permanently gone, so — unlike the
+      // generic message — this one doesn't tell the Requester to retry something that can't
+      // succeed. No path or raw fs error text is exposed either way.
+      if (err.code === "ENOENT") {
+        return res.status(500).json({
+          error: {
+            code: "ATTACHMENT_FILE_MISSING",
+            message: "This attachment's file could not be found and cannot be recovered.",
+          },
+        });
       }
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to download the attachment." } });
     });
   } catch {
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to download the attachment." } });
