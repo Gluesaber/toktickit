@@ -94,6 +94,27 @@ cd ../client
 npm test   # Vitest (UI tests)
 ```
 
+### End-to-end tests (Playwright)
+
+One-time setup, from the repo root:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
+To run the suite, the dev Postgres container must be running/seeded (steps 3–4 above) and the backend
+must already be started (`cd server && npm run dev`) — Playwright only auto-starts the Vite client:
+
+```bash
+npx playwright test
+```
+
+This runs `e2e/lab-02/requester-ticket-flow.spec.ts` (one connected Requester journey: select →
+create ticket with an attachment → find it in My Tickets → view its detail → download/soft-remove the
+attachment) and `e2e/lab-02/visual-responsive.spec.ts` (desktop/tablet/mobile screenshots + layout
+checks for all three screens, saved to `artifacts/lab-02/screenshots/`).
+
 ## Project structure
 
 ```

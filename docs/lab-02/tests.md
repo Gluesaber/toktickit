@@ -145,21 +145,40 @@ Six levels, per the labsheet's minimum coverage requirement: **Unit**, **API**, 
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| RESP-01 | AC-29 | Create Ticket at 375px width | No horizontal scroll; fields stacked vertically | Pending |
-| RESP-02 | — | My Tickets at 375px width | Renders the card layout, not the desktop table | Pending |
-| RESP-03 | — | Ticket Detail at 820px (tablet) width | Two-column layout renders without clipping/overlap | Pending |
-| RESP-04 | — | Screenshot capture, 3 screens × 3 viewports | Produces the files listed in `ui-spec.md` §10 for Part 9 evidence | Pending |
+| RESP-01 | AC-29 | Create Ticket at 375px width | No horizontal scroll; fields stacked vertically | Pass |
+| RESP-02 | — | My Tickets at 375px width | Renders the card layout, not the desktop table | Pass |
+| RESP-03 | — | Ticket Detail at 820px (tablet) width | Two-column layout renders without clipping/overlap | Pass |
+| RESP-04 | — | Screenshot capture, 3 screens × 3 viewports | Produces the files listed in `ui-spec.md` §10 for Part 9 evidence | Pass |
+
+Implemented as 9 parametrized Playwright tests (3 screens × 3 viewports via `test.describe.each`-style
+looping), each taking a real screenshot and asserting no horizontal overflow; RESP-02/RESP-03 add a
+structural assertion specific to that screen/viewport. All 9 executions pass, verified stable across 4
+repeated full runs.
 
 ### E2E — `e2e/lab-02/requester-ticket-flow.spec.ts`
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| E2E-01 | AC-01, AC-06 | Select Requester A → create a valid Ticket with one attachment | Confirmation shows the official Ticket Number | Pending |
-| E2E-02 | AC-01, AC-13 | Search for the ticket just created | It's found in My Tickets by Ticket Number | Pending |
-| E2E-03 | AC-20 | Open Ticket Detail from My Tickets | Displayed fields match what was submitted | Pending |
-| E2E-04 | AC-22, AC-24, AC-25, AC-26 | Add a second attachment, then soft-remove the first with a reason | Removed one blocks download, active one still downloads | Pending |
-| E2E-05 | AC-03, AC-19, AC-21 | Switch to Requester B via Change Requester | Requester A's ticket is absent from the list and its direct Ticket Detail URL is blocked | Pending |
-| E2E-06 | AC-10 | Submit a valid Create Ticket form with the API mocked to fail | Safe failure state shown, form values retained (see §7 on how "backend down" is simulated) | Pending |
+| E2E-01 | AC-01, AC-06 | Select Requester A → create a valid Ticket with one attachment | Confirmation shows the official Ticket Number | Pass |
+| E2E-02 | AC-01, AC-13 | Search for the ticket just created | It's found in My Tickets by Ticket Number | Pass |
+| E2E-03 | AC-20 | Open Ticket Detail from My Tickets | Displayed fields match what was submitted | Pass |
+| E2E-04 | AC-22, AC-26 | Download the attachment, then soft-remove it with a reason | Download succeeds; row updates to show "Unavailable" + the reason | Pass |
+| E2E-05 | AC-03, AC-19, AC-21 | ~~Switch to Requester B via Change Requester~~ | ~~Requester A's ticket is absent from the list and its direct Ticket Detail URL is blocked~~ | **Deferred** |
+| E2E-06 | AC-10 | ~~Submit a valid Create Ticket form with the API mocked to fail~~ | ~~Safe failure state shown, form values retained~~ | **Deferred** |
+
+E2E-01–E2E-04 are all exercised within one connected Playwright test (`requester-ticket-flow.spec.ts`),
+matching Issue 2-8's literal 5-step scope — mirrors a real Requester's session rather than 4 isolated
+tests. Passed on every run across 4 repeated full-suite executions.
+
+E2E-04's scope narrowed from the original plan (no second attachment added, no live re-check that the
+removed one blocks download mid-flow) to match the simpler "download or soft-remove, verify the UI
+updates" wording Issue 2-8 was actually scoped to. `AC-24`/`AC-25` — the parts of the original E2E-04
+this drops — remain independently covered by `API-16` and `UI-20` respectively (see §3), so neither AC
+loses its only test.
+
+E2E-05/E2E-06 were deliberately **not built** — see §7 for why, and confirmation that `AC-03`/`AC-10`/
+`AC-19`/`AC-21` all still have at least one other passing test each, so the AC traceability promise (§3)
+still holds despite these two being deferred.
 
 ## 3. Acceptance-Criterion Traceability
 
@@ -167,14 +186,14 @@ Six levels, per the labsheet's minimum coverage requirement: **Unit**, **API**, 
 |---|---|---|---|
 | AC-01 | API-01, UI-08, E2E-01, E2E-02 | AC-16 | API-24, UI-10 |
 | AC-02 | UI-14 | AC-17 | API-25, UI-13 |
-| AC-03 | API-31, E2E-05 | AC-18 | API-26 |
-| AC-04 | API-02, UI-01 | AC-19 | UI-12, E2E-05 |
+| AC-03 | API-31 | AC-18 | API-26 |
+| AC-04 | API-02, UI-01 | AC-19 | UI-12 |
 | AC-05 | API-03, UI-02 | AC-20 | API-30, UI-15, E2E-03 |
-| AC-06 | API-10, E2E-01 | AC-21 | API-31, UI-16, E2E-05 |
+| AC-06 | API-10, E2E-01 | AC-21 | API-31, UI-16 |
 | AC-07 | API-11, UI-03 | AC-22 | API-15, UI-19, E2E-04 |
 | AC-08 | API-12, UI-04 | AC-23 | UI-17 |
-| AC-09 | API-13, UI-05 | AC-24 | API-16, E2E-04 |
-| AC-10 | UI-07, E2E-06 | AC-25 | UI-20, E2E-04 |
+| AC-09 | API-13, UI-05 | AC-24 | API-16 |
+| AC-10 | UI-07 | AC-25 | UI-20 |
 | AC-11 | UI-06 | AC-26 | API-17, UI-18, E2E-04 |
 | AC-12 | API-20 | AC-27 | UI-21 |
 | AC-13 | API-21, UI-11, E2E-02 | AC-28 | UI-22 |
@@ -198,37 +217,56 @@ that checklist.
 |---|---|
 | `cd server && npm test` | All Vitest/Supertest suites, including `server/tests/lab-02/*.api.test.ts` and the unit tests |
 | `cd client && npm test` | All Vitest/Testing-Library suites, including `client/tests/lab-02/*.test.tsx` |
-| `npx playwright test e2e/lab-02` (from repo root, once Playwright is added in Issue 8) | `requester-ticket-flow.spec.ts` and `visual-responsive.spec.ts` |
+| `npx playwright test` (from repo root) | `requester-ticket-flow.spec.ts` and `visual-responsive.spec.ts` — `playwright.config.ts` already scopes `testDir` to `e2e/` |
 | `cd server && npm run prisma:migrate && npm run prisma:seed` | Applies the Lab 2 migration and (re-)seeds reference data + Requesters before any of the above |
+| `cd server && npm run dev` (must already be running before `npx playwright test`) | The backend — Playwright's `webServer` config only auto-starts the Vite client, since the backend depends on the DB being up, which Playwright can't manage |
 
 ## 6. Final Results
 
-Not yet run — `feature/2-1-spec` only contains the four planning documents, no implementation. This
-table is filled in as each feature-branch PR merges into `lab2-staging`, and the final counts here must
-match a clean `npm test` run on `main` before Lab 2 is submitted.
+As of Issue 2-8, all planned levels have real implementation and passing runs except the 2 deferred E2E
+scenarios (§7). Counts below are verified from actual `npm test`/`npx playwright test` output, not the
+original Issue 2-1 estimates — several levels grew past their initial plan as real bugs were found along
+the way and regression tests were added for them (e.g. the PR #26 review round added a 5-active-
+attachment concurrency test, malformed-`:id` tests, and a mismatched-extension/MIME test).
 
-| Level | Planned | Passing | Failing | Pending |
-|---|---|---|---|---|
-| Unit | 4 | 0 | 0 | 4 |
-| API | 32 | 0 | 0 | 32 |
-| UI component | 23 | 0 | 0 | 23 |
-| UI style | 5 | 0 | 0 | 5 |
-| Responsive | 4 | 0 | 0 | 4 |
-| E2E | 6 | 0 | 0 | 6 |
-| **Total** | **74** | **0** | **0** | **74** |
+| Level | Planned (original) | Actual | Passing | Failing | Deferred |
+|---|---|---|---|---|---|
+| Unit | 4 | 20 | 20 | 0 | 0 |
+| API | 32 | 46 | 46 | 0 | 0 |
+| UI component | 23 | 26 | 26 | 0 | 0 |
+| UI style | 5 | 4 | 4 | 0 | 0 |
+| Responsive | 4 (scenario IDs) | 9 (parametrized executions) | 9 | 0 | 0 |
+| E2E | 6 (scenario IDs) | 1 execution, covering 4 of 6 IDs | 1 | 0 | 2 (E2E-05, E2E-06) |
+| **Total (Lab 2 only)** | **74** | **106** | **106** | **0** | **2 scenario IDs** |
+
+"Actual" for Responsive/E2E counts real test executions, not scenario IDs, since both files ended up
+parametrized/consolidated rather than one `test()` per planned ID — see §2's notes under each table for
+exactly which IDs each execution satisfies. The `106` total excludes the 2 pre-existing Lab 1 tests
+(`health.test.ts`, `categories.test.ts`), which still pass but were never part of Lab 2's planned scope.
+Re-run 4 times across this and the prior issue's work with zero flakes.
 
 ## 7. Known Limitations or Deferred Tests
 
 - **BR-23 (no server-side idempotency)** is intentionally *not* tested as a failure case — API-07 instead
   documents the accepted current behavior (two identical submissions create two Tickets). A real
   idempotency-key mechanism is out of scope for Lab 2.
-- **E2E-06 ("backend down")** simulates failure via Playwright request interception
-  (`page.route(...).abort()`) rather than literally stopping the `server` process — stopping/restarting a
-  real process mid-suite is flaky in CI. The submission PDF's Part 6 evidence (§13 of the labsheet) still
-  needs one *manual* screenshot of the literal backend-stopped case, taken by hand against the dev
-  server, separate from this automated test.
+- **E2E-05 (Requester-switch ownership isolation) and E2E-06 (simulated backend failure) were not
+  built.** Issue 2-8 was scoped to the labsheet's literal 5-step flow requirement (§8.8/Part 9 only name
+  Playwright for the responsive screenshots, not for every E2E scenario originally planned), and both
+  scenarios are already independently covered without an E2E-level duplicate: ownership isolation is
+  proven end-to-end at the API layer (`API-31` — a foreign Requester gets an identical 404, `AC-03`/
+  `AC-21`) and at the UI layer (`UI-12` — switching Requesters reloads the list, `AC-19`); the safe-failure
+  state is proven at the UI layer with a mocked API failure (`UI-07`, `AC-10`). The E2E-level version of
+  each would mainly be re-proving the same guarantee through one more layer, which is lower value than
+  keeping the flow test matched to Issue 2-8's actual scope. The submission PDF's Part 6/7 evidence
+  (§13/§14 of the labsheet) still needs manual screenshots of both scenarios (stopped-backend state,
+  cross-Requester access attempt) regardless of this decision — that's Issue 2-9's job, not a test.
 - **Cross-browser coverage** is out of scope — Playwright runs against one engine (Chromium) for Lab 2;
   broader browser matrix testing is not part of this sprint's Definition of Done.
-- **Load/concurrency testing** (e.g., two simultaneous ticket creations racing on the id-based Ticket
-  Number) is not covered; BR-05's reliance on Postgres's own autoincrement guarantee is treated as
-  sufficient evidence of uniqueness without a dedicated concurrency test.
+- **Load/concurrency testing** is not covered at the E2E level (e.g., two simultaneous ticket creations
+  racing on the id-based Ticket Number rely on Postgres's own autoincrement guarantee, treated as
+  sufficient without a dedicated test). One exception: the PR #26 review round added a real API-level
+  concurrency test for BR-29 (the 5-active-attachment cap), after a reviewer found the original
+  count-then-create logic wasn't transactional — see `attachments.api.test.ts`'s "enforces the
+  5-active-attachment cap exactly under concurrent uploads" test, which fires 8 simultaneous uploads and
+  asserts the cap holds.
