@@ -15,3 +15,9 @@ server/uploads/*
 # logs & OS
 *.log
 .DS_Store
+# Playwright (Issue 2-8) — local run artifacts, not the screenshots we deliberately keep
+# (those live under artifacts/lab-02/screenshots/, which is NOT ignored)
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
