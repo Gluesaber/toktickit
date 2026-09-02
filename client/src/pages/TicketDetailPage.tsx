@@ -3,11 +3,11 @@ import { Link, useParams } from "react-router-dom";
 import { ApiError, TicketDetail, getTicket } from "../api.js";
 import { useRequester } from "../context/RequesterContext.js";
 import { PriorityBadge, StatusBadge } from "../components/Badges.js";
+import AttachmentSection from "../components/AttachmentSection.js";
 
 // Issue 2-6 (Lab 2) — Requester Ticket Detail: read-only ticket fields + attachments.
 // docs/lab-02/ui-spec.md §6, specification.md FR-12/FR-13, BR-12/BR-40, AC-20/AC-21.
-// Attachments are an inert placeholder here, same call as Create Ticket in Issue 2-4 — the real
-// list/add/download/remove UI lands in Issue 2-7 once the Attachment endpoints exist.
+// Issue 2-7 (Lab 2) — the Attachment section is now the real add/download/remove UI.
 type LoadState = "loading" | "ready" | "not-found" | "failure";
 
 function formatDateTime(iso: string): string {
@@ -156,19 +156,13 @@ export default function TicketDetailPage() {
         <p style={{ whiteSpace: "pre-wrap" }}>{ticket.description}</p>
       </div>
 
-      {/* Attachment section — visually separated, inert placeholder until Issue 2-7 */}
-      <div className="card">
-        <div className="card-body">
-          <h2 className="h6 card-title">Attachments</h2>
-          <div
-            className="border rounded p-3 text-muted"
-            style={{ backgroundColor: "var(--zg-field-readonly-bg)" }}
-            aria-disabled="true"
-          >
-            Attachments will be available once Issue 2-7 is implemented.
-          </div>
-        </div>
-      </div>
+      {/* Attachment section — visually separated from the read-only fields above */}
+      <AttachmentSection
+        ticketId={ticket.id}
+        requesterId={requester!.id}
+        attachments={ticket.attachments}
+        onRefresh={load}
+      />
     </div>
   );
 }

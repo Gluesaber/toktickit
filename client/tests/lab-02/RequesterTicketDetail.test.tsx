@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import TicketDetailPage from "../../src/pages/TicketDetailPage.js";
 import { RequesterProvider } from "../../src/context/RequesterContext.js";
 import * as api from "../../src/api.js";
 import { ApiError } from "../../src/api.js";
-import type { TicketDetail } from "../../src/api.js";
+import type { Attachment, TicketDetail } from "../../src/api.js";
 
 function renderPage(id = "1") {
   window.localStorage.setItem(
@@ -21,6 +22,20 @@ function renderPage(id = "1") {
       </RequesterProvider>
     </MemoryRouter>
   );
+}
+
+function makeAttachment(overrides: Partial<Attachment> = {}): Attachment {
+  return {
+    id: 1,
+    originalFileName: "battery-report.pdf",
+    mimeType: "application/pdf",
+    fileSizeBytes: 182004,
+    uploadedAt: "2026-08-24T09:33:00.000Z",
+    removedAt: null,
+    removalReason: null,
+    active: true,
+    ...overrides,
+  };
 }
 
 function makeTicketDetail(overrides: Partial<TicketDetail> = {}): TicketDetail {
@@ -59,8 +74,11 @@ describe("TicketDetailPage", () => {
     expect(
       screen.getByText(/battery drops from 100% to 20% within an hour/i)
     ).toBeInTheDocument();
-    // No editable inputs anywhere on this screen — every field is read-only.
-    expect(document.querySelectorAll("input:not([disabled])")).toHaveLength(0);
+    // Every *ticket* field is read-only — the only enabled input on the page is the Attachment
+    // section's file-add control, which is legitimately interactive (Issue 2-7).
+    const enabledInputs = document.querySelectorAll("input:not([disabled])");
+    expect(enabledInputs).toHaveLength(1);
+    expect(enabledInputs[0]).toHaveAttribute("type", "file");
   });
 
   // UI-16 (AC-21)
@@ -85,13 +103,57 @@ describe("TicketDetailPage", () => {
     expect(screen.queryByText(/ticket not found/i)).not.toBeInTheDocument();
   });
 
-  it("shows the Attachments section as a non-functional placeholder pending Issue 2-7", async () => {
-    vi.spyOn(api, "getTicket").mockResolvedValue(makeTicketDetail());
+  // UI-17 (AC-23)
+  it("shows a removed attachment as Unavailable, with no download link", async () => {
+    vi.spyOn(api, "getTicket").mockResolvedValue(
+      makeTicketDetail({
+        attachments: [
+          makeAttachment({
+            id: 2,
+            originalFileName: "old-screenshot.png",
+            active: false,
+            removedAt: "2026-08-25T10:00:00.000Z",
+            removalReason: "Wrong file",
+          }),
+        ],
+      })
+    );
     renderPage();
 
-    await waitFor(() => {
-      expect(screen.getByText(/attachments will be available once issue 2-7/i)).toBeInTheDocument();
+    expect(await screen.findByText("old-screenshot.png")).toBeInTheDocument();
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /old-screenshot\.png/i })).not.toBeInTheDocument();
+  });
+
+  // UI-18 (AC-26)
+  it("soft-removes an active attachment with a typed reason and reflects the removed state", async () => {
+    const activeAttachment = makeAttachment({ id: 3, originalFileName: "receipt.jpg" });
+    vi.spyOn(api, "getTicket")
+      .mockResolvedValueOnce(makeTicketDetail({ attachments: [activeAttachment] }))
+      .mockResolvedValueOnce(
+        makeTicketDetail({
+          attachments: [
+            { ...activeAttachment, active: false, removedAt: "2026-08-26T00:00:00.000Z", removalReason: "Blurry" },
+          ],
+        })
+      );
+    const removeSpy = vi.spyOn(api, "removeAttachment").mockResolvedValue({
+      ...activeAttachment,
+      active: false,
+      removedAt: "2026-08-26T00:00:00.000Z",
+      removalReason: "Blurry",
     });
-    expect(screen.queryByRole("button", { name: /add attachment/i })).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("receipt.jpg");
+    await user.click(screen.getByRole("button", { name: /remove/i }));
+    await user.type(screen.getByPlaceholderText(/reason/i), "Blurry");
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+
+    await waitFor(() => {
+      expect(removeSpy).toHaveBeenCalledWith(3, 1, "Blurry");
+    });
+    expect(await screen.findByText("Unavailable")).toBeInTheDocument();
   });
 });

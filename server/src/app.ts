@@ -1,9 +1,13 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
+import fs from "node:fs/promises";
+import path from "node:path";
+import multer from "multer";
 import { Priority, TicketStatus } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 import { formatTicketNumber } from "./ticketNumber.js";
 import { clampPage, clampPageSize } from "./ticketQuery.js";
+import { UPLOAD_DIR, MAX_ACTIVE_ATTACHMENTS, upload } from "./upload.js";
 
 // The Express app is exported separately from app.listen() (see index.ts) so
 // Supertest can import `app` without opening a port. Do not merge these files.
@@ -11,6 +15,50 @@ export const app = express();
 
 app.use(cors());          // already wired: lets the Vite dev server call this API
 app.use(express.json());
+
+// Issue 2-7 (Lab 2) — shared shape for one Attachment across GET /api/tickets/:id,
+// GET/POST .../attachments, and DELETE /api/attachments/:id (BR-32: removed ones keep their
+// metadata visible, only download/preview is blocked).
+type AttachmentRecord = {
+  id: number;
+  originalFileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  uploadedAt: Date;
+  removedAt: Date | null;
+  removalReason: string | null;
+};
+
+// PR #26 review — a non-numeric `:id` (e.g. `/api/tickets/abc`) previously reached Prisma as
+// `NaN`, which throws rather than matching zero rows, surfacing as a misleading `500
+// INTERNAL_ERROR` instead of `404`. Every route with an `:id`/`:ticketId` param parses it through
+// this first, so a malformed id gets the same "not found" treatment as a well-formed one that
+// doesn't exist (consistent with BR-12's existing doesn't-exist/not-owned-are-identical design —
+// no new status code or doc change needed).
+function parseRouteId(raw: string): number | null {
+  const id = Number(raw);
+  return Number.isInteger(id) ? id : null;
+}
+
+// PR #26 review — BR-29's 5-active-attachment cap was checked (`count`) and enforced (`create`)
+// as two separate, non-transactional queries, so two concurrent uploads for the same Ticket could
+// both read a count under the limit and both insert, exceeding 5. Thrown inside the
+// `$transaction` in the upload route below (see there) to roll back the insert without leaking a
+// generic 500 for what is really a 409.
+class AttachmentLimitReachedError extends Error {}
+
+function formatAttachment(a: AttachmentRecord) {
+  return {
+    id: a.id,
+    originalFileName: a.originalFileName,
+    mimeType: a.mimeType,
+    fileSizeBytes: a.fileSizeBytes,
+    uploadedAt: a.uploadedAt,
+    removedAt: a.removedAt,
+    removalReason: a.removalReason,
+    active: a.removedAt === null,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Issue 2 — API health check
@@ -330,7 +378,10 @@ app.get("/api/tickets/:id", async (req: Request, res: Response) => {
     return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
   }
 
-  const ticketId = Number(req.params.id);
+  const ticketId = parseRouteId(req.params.id);
+  if (ticketId === null) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+  }
 
   try {
     const ticket = await prisma.ticket.findFirst({
@@ -352,19 +403,222 @@ app.get("/api/tickets/:id", async (req: Request, res: Response) => {
     const { attachments, requesterId: _requesterId, categoryId: _categoryId, relatedSystemId: _relatedSystemId, ...rest } = ticket;
     res.status(200).json({
       ...rest,
-      attachments: attachments.map((a) => ({
-        id: a.id,
-        originalFileName: a.originalFileName,
-        mimeType: a.mimeType,
-        fileSizeBytes: a.fileSizeBytes,
-        uploadedAt: a.uploadedAt,
-        removedAt: a.removedAt,
-        removalReason: a.removalReason,
-        active: a.removedAt === null,
-      })),
+      attachments: attachments.map(formatAttachment),
     });
   } catch {
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to retrieve the ticket." } });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Issue 2-7 (Lab 2) — add an Attachment to an owned Ticket. api-spec.md "POST
+// /api/tickets/:id/attachments". Uses the callback form of `upload.single(...)` (rather than
+// mounting it as route middleware) so multer's errors (wrong type, too large) are handled right
+// here alongside the rest of this route's validation, in the same style as every other route in
+// this file.
+// ---------------------------------------------------------------------------
+app.post("/api/tickets/:id/attachments", (req: Request, res: Response) => {
+  upload.single("file")(req, res, async (err: unknown) => {
+    const cleanupOrphanedFile = async () => {
+      if (req.file) await fs.unlink(req.file.path).catch(() => {});
+    };
+
+    if (err) {
+      await cleanupOrphanedFile();
+      if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+        return res
+          .status(413)
+          .json({ error: { code: "FILE_TOO_LARGE", message: "File exceeds the 5 MB limit." } });
+      }
+      if (err instanceof Error && err.message === "UNSUPPORTED_FILE_TYPE") {
+        return res.status(415).json({
+          error: { code: "UNSUPPORTED_FILE_TYPE", message: "File type not allowed. Use JPG, PNG, WEBP, or PDF." },
+        });
+      }
+      return res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to upload the attachment." } });
+    }
+
+    const prisma = getPrisma();
+    const requesterId = Number(req.body.requesterId);
+    const ticketId = parseRouteId(req.params.id);
+
+    if (!req.file) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A file is required." } });
+    }
+    if (!Number.isInteger(requesterId)) {
+      await cleanupOrphanedFile();
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
+    }
+    if (ticketId === null) {
+      await cleanupOrphanedFile();
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+    }
+
+    try {
+      // BR-34: a rejected upload never touches the existing Attachment list — every check below
+      // that fails cleans up the file multer already wrote to disk and returns without creating
+      // a row.
+      const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, requesterId } });
+      if (!ticket) {
+        await cleanupOrphanedFile();
+        return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+      }
+
+      // PR #26 review — count-then-create was two separate, non-transactional queries, letting
+      // concurrent uploads both pass the check and exceed BR-29's 5-active cap. `FOR UPDATE` locks
+      // this Ticket's row for the duration of the transaction, so a second concurrent upload for
+      // the *same* Ticket blocks until the first commits and re-counts against the now-current
+      // state — uploads to different Tickets are untouched, no global serialization.
+      const attachment = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Ticket" WHERE id = ${ticketId} FOR UPDATE`;
+        const activeCount = await tx.attachment.count({ where: { ticketId, removedAt: null } });
+        if (activeCount >= MAX_ACTIVE_ATTACHMENTS) {
+          throw new AttachmentLimitReachedError();
+        }
+        return tx.attachment.create({
+          data: {
+            ticketId,
+            originalFileName: req.file!.originalname,
+            storedFileName: req.file!.filename,
+            mimeType: req.file!.mimetype,
+            fileSizeBytes: req.file!.size,
+          },
+        });
+      });
+
+      res.status(201).json(formatAttachment(attachment));
+    } catch (err) {
+      await cleanupOrphanedFile();
+      if (err instanceof AttachmentLimitReachedError) {
+        return res.status(409).json({
+          error: { code: "ATTACHMENT_LIMIT_REACHED", message: "This ticket already has 5 active attachments." },
+        });
+      }
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to upload the attachment." } });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Issue 2-7 (Lab 2) — Attachment metadata for a Ticket (active and removed both included, per
+// BR-32). api-spec.md "GET /api/tickets/:id/attachments".
+// ---------------------------------------------------------------------------
+app.get("/api/tickets/:id/attachments", async (req: Request, res: Response) => {
+  const prisma = getPrisma();
+  const requesterId = Number(req.query.requesterId);
+  if (!Number.isInteger(requesterId)) {
+    return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
+  }
+  const ticketId = parseRouteId(req.params.id);
+  if (ticketId === null) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+  }
+
+  try {
+    const ticket = await prisma.ticket.findFirst({
+      where: { id: ticketId, requesterId },
+      include: { attachments: { orderBy: { uploadedAt: "asc" } } },
+    });
+    if (!ticket) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+    }
+    res.status(200).json(ticket.attachments.map(formatAttachment));
+  } catch {
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to retrieve attachments." } });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Issue 2-7 (Lab 2) — download an active Attachment. api-spec.md "GET
+// /api/attachments/:id/download". Ownership check via the relation filter below gives the same
+// identical-404 treatment as GET /api/tickets/:id (BR-12); a removed-but-owned Attachment gets
+// 410 Gone instead, since the Requester already knows it exists (its metadata is visible in
+// Ticket Detail per BR-32) — no existence-leak risk there.
+// ---------------------------------------------------------------------------
+app.get("/api/attachments/:id/download", async (req: Request, res: Response) => {
+  const prisma = getPrisma();
+  const requesterId = Number(req.query.requesterId);
+  if (!Number.isInteger(requesterId)) {
+    return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
+  }
+  const attachmentId = parseRouteId(req.params.id);
+  if (attachmentId === null) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "Attachment not found." } });
+  }
+
+  try {
+    const attachment = await prisma.attachment.findFirst({
+      where: { id: attachmentId, ticket: { requesterId } },
+    });
+    if (!attachment) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Attachment not found." } });
+    }
+    if (attachment.removedAt !== null) {
+      return res
+        .status(410)
+        .json({ error: { code: "ATTACHMENT_REMOVED", message: "This attachment has been removed." } });
+    }
+
+    const filePath = path.join(UPLOAD_DIR, attachment.storedFileName);
+    res.download(filePath, attachment.originalFileName, (err: NodeJS.ErrnoException | undefined) => {
+      if (!err || res.headersSent) return;
+      // Still 500 (this is a server-side data integrity problem, not the caller's fault), but
+      // distinguished from other download failures: the file is permanently gone, so — unlike the
+      // generic message — this one doesn't tell the Requester to retry something that can't
+      // succeed. No path or raw fs error text is exposed either way.
+      if (err.code === "ENOENT") {
+        return res.status(500).json({
+          error: {
+            code: "ATTACHMENT_FILE_MISSING",
+            message: "This attachment's file could not be found and cannot be recovered.",
+          },
+        });
+      }
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to download the attachment." } });
+    });
+  } catch {
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to download the attachment." } });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Issue 2-7 (Lab 2) — soft-remove an owned, active Attachment. api-spec.md "DELETE
+// /api/attachments/:id". Never a hard delete (BR-31); `reason` is optional (BR-31 allows but
+// doesn't require it).
+// ---------------------------------------------------------------------------
+app.delete("/api/attachments/:id", async (req: Request, res: Response) => {
+  const prisma = getPrisma();
+  const requesterId = Number(req.body.requesterId);
+  if (!Number.isInteger(requesterId)) {
+    return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
+  }
+  const attachmentId = parseRouteId(req.params.id);
+  const reason = typeof req.body.reason === "string" && req.body.reason.trim() ? req.body.reason.trim() : null;
+  if (attachmentId === null) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "Attachment not found." } });
+  }
+
+  try {
+    const attachment = await prisma.attachment.findFirst({
+      where: { id: attachmentId, ticket: { requesterId } },
+    });
+    if (!attachment) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Attachment not found." } });
+    }
+    if (attachment.removedAt !== null) {
+      return res
+        .status(409)
+        .json({ error: { code: "ALREADY_REMOVED", message: "This attachment was already removed." } });
+    }
+
+    const updated = await prisma.attachment.update({
+      where: { id: attachmentId },
+      data: { removedAt: new Date(), removalReason: reason },
+    });
+
+    res.status(200).json(formatAttachment(updated));
+  } catch {
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to remove the attachment." } });
   }
 });
 

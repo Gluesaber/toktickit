@@ -24,6 +24,12 @@ function renderPage() {
   );
 }
 
+function makeFile(name: string, type: string, sizeBytes = 1024): File {
+  const file = new File([new Uint8Array(1)], name, { type });
+  Object.defineProperty(file, "size", { value: sizeBytes });
+  return file;
+}
+
 async function fillValidForm(user: ReturnType<typeof userEvent.setup>) {
   await screen.findByRole("option", { name: "Hardware" });
   await user.selectOptions(screen.getByLabelText(/category/i), "1");
@@ -148,6 +154,93 @@ describe("CreateTicketPage", () => {
     await user.click(screen.getByRole("button", { name: /submit/i }));
 
     expect(await screen.findByText("TK-2026-000001")).toBeInTheDocument();
+  });
+
+  // UI-03 (AC-07, BR-28)
+  it("rejects a file over 5 MB and does not add it to the list", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("option", { name: "Hardware" });
+
+    const input = screen.getByLabelText(/add file/i);
+    await user.upload(input, makeFile("big.jpg", "image/jpeg", 6 * 1024 * 1024));
+
+    expect(await screen.findByText(/exceeds the 5 mb limit/i)).toBeInTheDocument();
+    expect(screen.queryByText("big.jpg")).not.toBeInTheDocument();
+  });
+
+  // UI-04 (AC-08, BR-27)
+  it("rejects an unsupported file type and does not add it to the list", async () => {
+    // applyAccept: false — the input's `accept` attribute already guides the native file picker
+    // (left in place for real users), but userEvent.upload() filters by it too by default, which
+    // would prevent this deliberately-mismatched file from ever reaching our change handler. We
+    // need it to reach the handler here, to prove the JS validation path itself (BR-27) also
+    // catches it — the backend re-validates regardless, since accept/JS are both bypassable.
+    const user = userEvent.setup({ applyAccept: false });
+    renderPage();
+    await screen.findByRole("option", { name: "Hardware" });
+
+    const input = screen.getByLabelText(/add file/i);
+    await user.upload(input, makeFile("virus.exe", "application/octet-stream"));
+
+    expect(await screen.findByText(/unsupported file type/i)).toBeInTheDocument();
+    expect(screen.queryByText("virus.exe")).not.toBeInTheDocument();
+  });
+
+  // UI-05 (AC-09, BR-29)
+  it("rejects a 6th file when 5 are already queued", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("option", { name: "Hardware" });
+
+    const input = screen.getByLabelText(/add file/i);
+    for (let i = 0; i < 5; i++) {
+      await user.upload(input, makeFile(`photo${i}.jpg`, "image/jpeg"));
+    }
+    expect(screen.getByText("photo4.jpg")).toBeInTheDocument();
+
+    await user.upload(input, makeFile("photo5.jpg", "image/jpeg"));
+    expect(await screen.findByText(/only 5 attachments are allowed/i)).toBeInTheDocument();
+    expect(screen.queryByText("photo5.jpg")).not.toBeInTheDocument();
+  });
+
+  // AC-06
+  it("uploads a staged attachment after the Ticket is created and shows it as uploaded", async () => {
+    vi.spyOn(api, "createTicket").mockResolvedValue({
+      id: 1,
+      ticketNumber: "TK-2026-000001",
+      requesterId: 1,
+      categoryId: 1,
+      relatedSystemId: 1,
+      summary: "x",
+      description: "y",
+      requestedPriority: "MEDIUM",
+      currentStatus: "NEW",
+      createdAt: "",
+      updatedAt: "",
+    });
+    const uploadSpy = vi.spyOn(api, "uploadAttachment").mockResolvedValue({
+      id: 7,
+      originalFileName: "photo.jpg",
+      mimeType: "image/jpeg",
+      fileSizeBytes: 1024,
+      uploadedAt: "",
+      removedAt: null,
+      removalReason: null,
+      active: true,
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await fillValidForm(user);
+    await user.upload(screen.getByLabelText(/add file/i), makeFile("photo.jpg", "image/jpeg"));
+
+    await user.click(screen.getByRole("button", { name: /submit/i }));
+
+    expect(await screen.findByText("TK-2026-000001")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(uploadSpy).toHaveBeenCalledWith(1, 1, expect.objectContaining({ name: "photo.jpg" }));
+    });
+    expect(await screen.findByText("Uploaded")).toBeInTheDocument();
   });
 
   // STYLE-01 — required-field asterisk + invalid class

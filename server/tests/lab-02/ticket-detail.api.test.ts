@@ -82,4 +82,12 @@ describe("GET /api/tickets/:id — ownership enforcement", () => {
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
   });
+
+  // PR #26 review finding — a malformed (non-numeric) :id previously reached Prisma as NaN and
+  // threw, surfacing as 500 INTERNAL_ERROR instead of a clean 404.
+  it("returns 404, not 500, for a malformed (non-numeric) ticket id", async () => {
+    const res = await request(app).get("/api/tickets/not-a-number").query({ requesterId: ownerId });
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe("NOT_FOUND");
+  });
 });

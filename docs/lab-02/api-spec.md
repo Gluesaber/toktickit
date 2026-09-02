@@ -218,7 +218,13 @@ Purpose: stream an active Attachment's file bytes. Requires `requesterId`.
 | `:id` doesn't exist, or its Ticket isn't owned by `requesterId` | `404` | `NOT_FOUND` |
 | `:id` exists and is owned, but has been soft-removed (BR-32, AC-24) | `410` | `ATTACHMENT_REMOVED` |
 | Missing/non-numeric `requesterId` | `400` | `VALIDATION_ERROR` |
+| Row exists and is owned/active, but its file is missing from disk (data-integrity fault, not the caller's error) | `500` | `ATTACHMENT_FILE_MISSING` |
 | Unexpected failure | `500` | `INTERNAL_ERROR` |
+
+`ATTACHMENT_FILE_MISSING` is distinguished from the generic `INTERNAL_ERROR` case because it's not
+transient — unlike most `500`s, retrying this exact request will never succeed, so the message says so
+explicitly rather than implying a retry might help. Still `500`, not a `4xx`, since this is a server-side
+storage fault, not something wrong with the request itself.
 
 `410 Gone` (rather than reusing `404`) is deliberate here: unlike the ownership case, the Requester
 already knows this Attachment exists (they can see its metadata in Ticket Detail per BR-32), so there is
