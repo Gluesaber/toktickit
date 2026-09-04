@@ -1,0 +1,13 @@
+{
+  "name": "toktickit-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Root-level package for Lab 2's Playwright E2E suite (e2e/lab-02). Client and server keep their own package.json in client/ and server/ respectively — this one exists only because e2e/ sits outside both.",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}

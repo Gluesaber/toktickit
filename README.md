@@ -2,7 +2,7 @@
 
 TokTickIT is an IT service desk application (Account & Access, Hardware, Software, and Network requests), built incrementally across the CPE 334 individual sprints.
 
-**Sprint 1 stack:** React (Vite + TypeScript + Bootstrap) → Express (TypeScript) REST API → Prisma ORM → PostgreSQL.
+**Stack:** React (Vite + TypeScript + Bootstrap) → Express (TypeScript) REST API → Prisma ORM → PostgreSQL. Sprint 2 adds Multer for file-upload handling and the full Requester ticketing workflow (Create Ticket, My Tickets, Ticket Detail, Attachment lifecycle).
 
 ## Prerequisites
 
@@ -83,7 +83,7 @@ cd client
 npm run dev      # http://localhost:5173
 ```
 
-Open `http://localhost:5173` in a browser. Click **Check System** to verify the backend health check and the seeded request categories load from PostgreSQL.
+Open `http://localhost:5173` in a browser. You will land on the **Development Requester Selector** — pick a requester to simulate a logged-in user (this is a Lab 2 testing mechanism, not real authentication). From there you can create tickets, browse your ticket list with search/filter/sort/pagination, view ticket detail, and manage attachments (upload, download, soft-remove).
 
 ## 6. Run tests
 
@@ -94,19 +94,54 @@ cd ../client
 npm test   # Vitest (UI tests)
 ```
 
+### End-to-end tests (Playwright)
+
+One-time setup, from the repo root:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
+To run the suite, the dev Postgres container must be running/seeded (steps 3–4 above) and the backend
+must already be started (`cd server && npm run dev`) — Playwright only auto-starts the Vite client:
+
+```bash
+npx playwright test
+```
+
+This runs `e2e/lab-02/requester-ticket-flow.spec.ts` (one connected Requester journey: select →
+create ticket with an attachment → find it in My Tickets → view its detail → download/soft-remove the
+attachment) and `e2e/lab-02/visual-responsive.spec.ts` (desktop/tablet/mobile screenshots + layout
+checks for all three screens, saved to `artifacts/lab-02/screenshots/`).
+
 ## Project structure
 
 ```
 toktickit/
-├── client/            # React + TypeScript + Vite + Bootstrap frontend
-├── server/            # Node.js + Express + TypeScript backend
-│   ├── prisma/        # Prisma schema, migrations, seed script
-│   └── tests/lab-01/  # Supertest API tests
-├── docs/lab-01/       # Lab 1 documentation (AI use, reviewer notes, test list)
+├── client/                    # React + TypeScript + Vite + Bootstrap frontend
+│   └── tests/
+│       ├── lab-01/            # Vitest UI tests (Lab 1)
+│       └── lab-02/            # Vitest UI tests (Lab 2)
+├── server/                    # Node.js + Express + TypeScript backend
+│   ├── prisma/                # Prisma schema, migrations, seed script
+│   └── tests/
+│       ├── lab-01/            # Supertest API tests (Lab 1)
+│       └── lab-02/            # Supertest API tests (Lab 2)
+├── e2e/
+│   └── lab-02/                # Playwright end-to-end tests
+├── docs/
+│   ├── lab-01/                # Lab 1 documentation
+│   └── lab-02/                # Lab 2 documentation
+├── artifacts/
+│   └── lab-02/screenshots/    # Playwright-captured viewport screenshots (desktop/tablet/mobile)
+│       ├── create-ticket/
+│       ├── my-tickets/
+│       └── ticket-detail/
 ├── .gitignore
 └── README.md
 ```
 
 ## Git workflow
 
-Development happens on `feature/*` branches, merged into `lab1-staging` via peer-reviewed Pull Requests. `main` only receives completed, reviewed work.
+Development happens on `feature/*` branches, merged into a per-lab staging branch (e.g. `lab2-staging`) via peer-reviewed Pull Requests. After integration testing on staging, one release PR merges staging into `main`. Do not develop directly on `main` or any staging branch.
