@@ -65,7 +65,7 @@ for (const [viewportName, viewportSize] of Object.entries(VIEWPORTS)) {
       await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
       await assertNoHorizontalOverflow(page);
       await page.screenshot({
-        path: `artifacts/lab-02/screenshots/create-ticket/initial-${viewportName}.png`,
+        path: `artifacts/lab-02/screenshots/responsive/create-ticket/initial-${viewportName}.png`,
         fullPage: true,
       });
     });
@@ -85,7 +85,7 @@ for (const [viewportName, viewportSize] of Object.entries(VIEWPORTS)) {
       }
 
       await page.screenshot({
-        path: `artifacts/lab-02/screenshots/my-tickets/requester-a-list-${viewportName}.png`,
+        path: `artifacts/lab-02/screenshots/responsive/my-tickets/requester-a-list-${viewportName}.png`,
         fullPage: true,
       });
     });
@@ -110,7 +110,7 @@ for (const [viewportName, viewportSize] of Object.entries(VIEWPORTS)) {
       }
 
       await page.screenshot({
-        path: `artifacts/lab-02/screenshots/ticket-detail/owned-view-${viewportName}.png`,
+        path: `artifacts/lab-02/screenshots/responsive/ticket-detail/owned-view-${viewportName}.png`,
         fullPage: true,
       });
     });
