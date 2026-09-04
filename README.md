@@ -134,9 +134,10 @@ toktickit/
 │   ├── lab-01/                # Lab 1 documentation
 │   └── lab-02/                # Lab 2 documentation
 ├── artifacts/
-│   └── lab-02/screenshots/
-│       ├── responsive/        # Playwright-captured viewport screenshots (desktop/tablet/mobile)
-│       └── functional/        # Manual functional-state screenshots (per-state evidence)
+│   └── lab-02/screenshots/    # Playwright-captured viewport screenshots (desktop/tablet/mobile)
+│       ├── create-ticket/
+│       ├── my-tickets/
+│       └── ticket-detail/
 ├── .gitignore
 └── README.md
 ```
