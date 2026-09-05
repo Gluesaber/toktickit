@@ -260,19 +260,28 @@ page, a raw error, or any fragment of the requested ticket's data (BR-40, AC-21)
 ## 9. Visual Inspection Checklist
 
 Run against Create Ticket, My Tickets, and Ticket Detail at desktop/tablet/mobile before marking a UI
-Issue done:
+Issue done. Completed as of Issue 2-9 — each item below is backed by either an automated test
+(`tests.md` §2/§3) or a direct manual verification pass (fresh-clone browser walkthroughs across Issues
+2-3–2-8), not just visual inspection at a glance:
 
-- [ ] Zen Green tokens match §1.1 exactly (no ad-hoc colors introduced)
-- [ ] Editable vs. read-only fields are visually distinguishable without reading the label
-- [ ] Every required field shows its asterisk and, when invalid, a message directly below it
-- [ ] Primary/secondary/tertiary/destructive buttons are visually distinct from each other
-- [ ] Submit shows a busy state and cannot be double-clicked into two requests
-- [ ] No clipped labels, overlapping text, or hidden controls at any of the three viewports
-- [ ] No horizontal page scrolling at the mobile viewport
-- [ ] Priority and status badges are consistent in color + label across all three screens
-- [ ] Desktop table vs. mobile card/collapsed-filter behavior both remain fully usable
-- [ ] Empty state and no-results state are visually distinct from each other on My Tickets
-- [ ] Removed attachments are visually distinct from active ones and cannot be clicked to download
+- [x] Zen Green tokens match §1.1 exactly (no ad-hoc colors introduced) — one shared `zen-green.css`
+      defines every token; no component sets an ad-hoc color
+- [x] Editable vs. read-only fields are visually distinguishable without reading the label — confirmed in
+      the Create Ticket/Ticket Detail screenshots (soft gray-green read-only fill vs. white editable)
+- [x] Every required field shows its asterisk and, when invalid, a message directly below it (STYLE-01)
+- [x] Primary/secondary/tertiary/destructive buttons are visually distinct from each other —
+      `.btn-zg-primary`/`btn-outline-secondary`/`btn-link`/`btn-outline-danger` all render distinctly
+- [x] Submit shows a busy state and cannot be double-clicked into two requests (UI-06, `.btn-busy`)
+- [x] No clipped labels, overlapping text, or hidden controls at any of the three viewports (RESP-01–04,
+      9 executions passing across 4 repeated runs — see `tests.md` §2/§6)
+- [x] No horizontal page scrolling at the mobile viewport (RESP-01; also directly confirmed via
+      `scrollWidth === clientWidth` during Issue 2-5's manual verification)
+- [x] Priority and status badges are consistent in color + label across all three screens — `Badges.tsx`
+      is one shared component used identically in My Tickets and Ticket Detail, not per-screen copies
+- [x] Desktop table vs. mobile card/collapsed-filter behavior both remain fully usable (RESP-02/RESP-03)
+- [x] Empty state and no-results state are visually distinct from each other on My Tickets (STYLE-05)
+- [x] Removed attachments are visually distinct from active ones and cannot be clicked to download
+      (UI-17, E2E-04, and manually confirmed during Issue 2-7's browser walkthrough)
 
 ## 10. Screenshot Plan
 

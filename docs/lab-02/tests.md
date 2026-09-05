@@ -1,8 +1,10 @@
 # Lab 2 Test Plan and Results
 
 Planned before implementation, per Test DD/TDD. Every row maps to an Acceptance Criterion (AC) or
-Business Rule (BR) in `specification.md`; every AC has at least one test (§3). `Final` will move from
-`Pending` to `Pass`/`Fail` as each Issue lands — this file is not reconstructed after the fact.
+Business Rule (BR) in `specification.md`; every AC has at least one test (§3). `Final` moved from
+`Pending` to `Pass`/`Fail`/`Deferred` as each Issue landed — this file was not reconstructed after the
+fact. As of Issue 2-9, every planned test has a real, verified final status; see §6 for the confirmed
+counts and §7 for the two scenarios deliberately deferred rather than built.
 
 ## 1. Test Strategy
 
@@ -31,115 +33,115 @@ Six levels, per the labsheet's minimum coverage requirement: **Unit**, **API**, 
 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UNIT-01 | BR-05 | Ticket Number generator format | Output matches `TK-<year>-<6-digit zero-padded id>` | Pending |
-| UNIT-02 | BR-01, BR-05 | Ticket Number uniqueness | Two different ids never produce the same number | Pending |
-| UNIT-03 | BR-17 | Ticket-list `page` clamp helper | Non-numeric/zero/negative `page` resolves to `1` | Pending |
-| UNIT-04 | BR-17 | Ticket-list `pageSize` clamp helper | Any value outside `10/25/50` resolves to `10` | Pending |
+| UNIT-01 | BR-05 | Ticket Number generator format | Output matches `TK-<year>-<6-digit zero-padded id>` | Pass |
+| UNIT-02 | BR-01, BR-05 | Ticket Number uniqueness | Two different ids never produce the same number | Pass |
+| UNIT-03 | BR-17 | Ticket-list `page` clamp helper | Non-numeric/zero/negative `page` resolves to `1` | Pass |
+| UNIT-04 | BR-17 | Ticket-list `pageSize` clamp helper | Any value outside `10/25/50` resolves to `10` | Pass |
 
 ### API — `server/tests/lab-02/create-ticket.api.test.ts`
 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| API-01 | AC-01 | `POST /api/tickets` valid payload | `201`, ticket persisted, `ticketNumber` present | Pending |
-| API-02 | AC-04, BR-19 | Blank `summary` | `400 VALIDATION_ERROR`, `fields.summary` set | Pending |
-| API-03 | AC-05, BR-20 | `description` under 10 chars | `400 VALIDATION_ERROR`, `fields.description` set | Pending |
-| API-04 | BR-06 | Body includes spoofed `ticketNumber`/`currentStatus` | Spoofed values ignored; server-generated ones used | Pending |
-| API-05 | BR-21 | `requesterId` inactive or unknown | `400 INVALID_REQUESTER` | Pending |
-| API-06 | BR-21 | `categoryId`/`relatedSystemId` inactive or unknown | `400 VALIDATION_ERROR` | Pending |
-| API-07 | BR-23 | Two identical `POST` requests in sequence | Two independent Tickets created (documented, not a bug) | Pending |
-| API-08 | — | `GET /api/categories` | Only `isActive = true` rows returned | Pending |
-| API-09 | BR-07, BR-35 | `GET /api/requesters` | Inactive seeded Requester excluded from the response | Pending |
+| API-01 | AC-01 | `POST /api/tickets` valid payload | `201`, ticket persisted, `ticketNumber` present | Pass |
+| API-02 | AC-04, BR-19 | Blank `summary` | `400 VALIDATION_ERROR`, `fields.summary` set | Pass |
+| API-03 | AC-05, BR-20 | `description` under 10 chars | `400 VALIDATION_ERROR`, `fields.description` set | Pass |
+| API-04 | BR-06 | Body includes spoofed `ticketNumber`/`currentStatus` | Spoofed values ignored; server-generated ones used | Pass |
+| API-05 | BR-21 | `requesterId` inactive or unknown | `400 INVALID_REQUESTER` | Pass |
+| API-06 | BR-21 | `categoryId`/`relatedSystemId` inactive or unknown | `400 VALIDATION_ERROR` | Pass |
+| API-07 | BR-23 | Two identical `POST` requests in sequence | Two independent Tickets created (documented, not a bug) | Pass |
+| API-08 | — | `GET /api/categories` | Only `isActive = true` rows returned | Pass |
+| API-09 | BR-07, BR-35 | `GET /api/requesters` | Inactive seeded Requester excluded from the response | Pass |
 
 ### API — `server/tests/lab-02/attachments.api.test.ts`
 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| API-10 | AC-06 | `POST .../attachments` valid JPG | `201`, attachment persisted and linked to the Ticket | Pending |
-| API-11 | AC-07, BR-28 | File over 5 MB | `413 FILE_TOO_LARGE` | Pending |
-| API-12 | AC-08, BR-27 | Unsupported type (`.exe`) | `415 UNSUPPORTED_FILE_TYPE` | Pending |
-| API-13 | AC-09, BR-29 | 6th attachment on a Ticket with 5 active | `409 ATTACHMENT_LIMIT_REACHED` | Pending |
-| API-14 | BR-33 | Upload attempt from a non-owning `requesterId` | `404 NOT_FOUND` | Pending |
-| API-15 | AC-22 | Download an active Attachment | `200`, correct binary + `Content-Disposition` | Pending |
-| API-16 | AC-24, BR-32 | Download a soft-removed Attachment | `410 ATTACHMENT_REMOVED` | Pending |
-| API-17 | AC-26, BR-31 | Soft-remove an active Attachment with a reason | `200`, `removedAt` + `removalReason` set | Pending |
-| API-18 | — | Soft-remove an already-removed Attachment | `409 ALREADY_REMOVED` | Pending |
-| API-19 | BR-32 | `GET .../attachments` metadata list | Includes both active and removed rows with full metadata | Pending |
+| API-10 | AC-06 | `POST .../attachments` valid JPG | `201`, attachment persisted and linked to the Ticket | Pass |
+| API-11 | AC-07, BR-28 | File over 5 MB | `413 FILE_TOO_LARGE` | Pass |
+| API-12 | AC-08, BR-27 | Unsupported type (`.exe`) | `415 UNSUPPORTED_FILE_TYPE` | Pass |
+| API-13 | AC-09, BR-29 | 6th attachment on a Ticket with 5 active | `409 ATTACHMENT_LIMIT_REACHED` | Pass |
+| API-14 | BR-33 | Upload attempt from a non-owning `requesterId` | `404 NOT_FOUND` | Pass |
+| API-15 | AC-22 | Download an active Attachment | `200`, correct binary + `Content-Disposition` | Pass |
+| API-16 | AC-24, BR-32 | Download a soft-removed Attachment | `410 ATTACHMENT_REMOVED` | Pass |
+| API-17 | AC-26, BR-31 | Soft-remove an active Attachment with a reason | `200`, `removedAt` + `removalReason` set | Pass |
+| API-18 | — | Soft-remove an already-removed Attachment | `409 ALREADY_REMOVED` | Pass |
+| API-19 | BR-32 | `GET .../attachments` metadata list | Includes both active and removed rows with full metadata | Pass |
 
 ### API — `server/tests/lab-02/my-tickets.api.test.ts`
 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| API-20 | AC-12, BR-13 | List scoping across two Requesters | Only the requesting Requester's Tickets are returned | Pending |
-| API-21 | AC-13, BR-14 | `search` by Ticket Number substring | Only matching Tickets returned | Pending |
-| API-22 | AC-14, BR-15 | `categoryId` filter | Only Tickets in that Category returned | Pending |
-| API-23 | AC-15, BR-37 | Requester with zero Tickets | `data: []`, `pagination.totalItems: 0` | Pending |
-| API-24 | AC-16, BR-38 | Filters matching nothing | `data: []` (client distinguishes from API-23 by active-filter state) | Pending |
-| API-25 | AC-17, BR-17 | `page=2` with >10 Tickets | Second page returned, correct `pagination` metadata | Pending |
-| API-26 | AC-18, BR-16 | `sortBy=requestedPriority` | Results ordered correctly, ties broken by `createdAt desc` | Pending |
-| API-27 | BR-17 | `page` beyond the last page | `200`, `data: []` — not an error | Pending |
-| API-28 | BR-18 | `sortBy=notARealField` | `400 VALIDATION_ERROR` | Pending |
-| API-29 | — | Missing `requesterId` | `400 VALIDATION_ERROR` | Pending |
+| API-20 | AC-12, BR-13 | List scoping across two Requesters | Only the requesting Requester's Tickets are returned | Pass |
+| API-21 | AC-13, BR-14 | `search` by Ticket Number substring | Only matching Tickets returned | Pass |
+| API-22 | AC-14, BR-15 | `categoryId` filter | Only Tickets in that Category returned | Pass |
+| API-23 | AC-15, BR-37 | Requester with zero Tickets | `data: []`, `pagination.totalItems: 0` | Pass |
+| API-24 | AC-16, BR-38 | Filters matching nothing | `data: []` (client distinguishes from API-23 by active-filter state) | Pass |
+| API-25 | AC-17, BR-17 | `page=2` with >10 Tickets | Second page returned, correct `pagination` metadata | Pass |
+| API-26 | AC-18, BR-16 | `sortBy=requestedPriority` | Results ordered correctly, ties broken by `createdAt desc` | Pass |
+| API-27 | BR-17 | `page` beyond the last page | `200`, `data: []` — not an error | Pass |
+| API-28 | BR-18 | `sortBy=notARealField` | `400 VALIDATION_ERROR` | Pass |
+| API-29 | — | Missing `requesterId` | `400 VALIDATION_ERROR` | Pass |
 
 ### API — `server/tests/lab-02/ticket-detail.api.test.ts`
 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| API-30 | AC-20 | `GET /api/tickets/:id` owned | `200`, full Ticket + `attachments[]` | Pending |
-| API-31 | AC-03, AC-21, BR-12, BR-40 | `GET /api/tickets/:id` owned by a different Requester | `404 NOT_FOUND` | Pending |
-| API-32 | BR-12 | `GET /api/tickets/:id` nonexistent id | `404 NOT_FOUND`, identical shape to API-31 | Pending |
+| API-30 | AC-20 | `GET /api/tickets/:id` owned | `200`, full Ticket + `attachments[]` | Pass |
+| API-31 | AC-03, AC-21, BR-12, BR-40 | `GET /api/tickets/:id` owned by a different Requester | `404 NOT_FOUND` | Pass |
+| API-32 | BR-12 | `GET /api/tickets/:id` nonexistent id | `404 NOT_FOUND`, identical shape to API-31 | Pass |
 
 ### UI component — `client/tests/lab-02/CreateTicket.test.tsx`
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-01 | AC-04 | Submit with blank Summary | Field message shown, no `fetch` call made | Pending |
-| UI-02 | AC-05 | Submit with short Description | Field message shown, no `fetch` call made | Pending |
-| UI-03 | AC-07 | Oversized file selected | Size error shown, file not added to the list | Pending |
-| UI-04 | AC-08 | Unsupported file type selected | Type error shown, file not added | Pending |
-| UI-05 | AC-09 | 6th file selected (5 already queued) | Limit error shown, 6th file not added | Pending |
-| UI-06 | AC-11 | Submit clicked | Button shows busy state and is disabled during the request | Pending |
-| UI-07 | AC-10 | Mocked API failure on submit | Safe error banner shown, all field values still populated | Pending |
-| UI-08 | AC-01 | Mocked successful submit | Confirmation panel shows the returned Ticket Number | Pending |
-| STYLE-01 | — | Required-field markup | Asterisk present; invalid fields carry the error CSS class | Pending |
-| STYLE-02 | — | Read-only field markup | Ticket Number/Date/Requester use the read-only class, not editable | Pending |
-| STYLE-04 | — | Submit button while pending | Carries the busy-state CSS class | Pending |
+| UI-01 | AC-04 | Submit with blank Summary | Field message shown, no `fetch` call made | Pass |
+| UI-02 | AC-05 | Submit with short Description | Field message shown, no `fetch` call made | Pass |
+| UI-03 | AC-07 | Oversized file selected | Size error shown, file not added to the list | Pass |
+| UI-04 | AC-08 | Unsupported file type selected | Type error shown, file not added | Pass |
+| UI-05 | AC-09 | 6th file selected (5 already queued) | Limit error shown, 6th file not added | Pass |
+| UI-06 | AC-11 | Submit clicked | Button shows busy state and is disabled during the request | Pass |
+| UI-07 | AC-10 | Mocked API failure on submit | Safe error banner shown, all field values still populated | Pass |
+| UI-08 | AC-01 | Mocked successful submit | Confirmation panel shows the returned Ticket Number | Pass |
+| STYLE-01 | — | Required-field markup | Asterisk present; invalid fields carry the error CSS class | Pass |
+| STYLE-02 | — | Read-only field markup | Ticket Number/Date/Requester use the read-only class, not editable | Pass |
+| STYLE-04 | — | Submit button while pending | Carries the busy-state CSS class | Pass |
 
 ### UI component — `client/tests/lab-02/MyTickets.test.tsx`
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-09 | AC-15 | Mocked zero-ticket response, no filters active | Empty-state message + Create Ticket action shown | Pending |
-| UI-10 | AC-16 | Mocked zero-match response, filter active | No-results message + Clear-filters action shown | Pending |
-| UI-11 | AC-13 | Typing in search | Triggers a re-fetch with the `search` query param set | Pending |
-| UI-12 | AC-19 | Change Requester action | List clears then reloads for the new Requester | Pending |
-| UI-13 | AC-17 | Clicking "next page" | Triggers a re-fetch with the incremented `page` param | Pending |
-| UI-14 | AC-02 | No Requester currently selected | Component redirects to the Selection screen | Pending |
-| STYLE-03 | — | Priority/status badges | Each badge renders a color class **and** visible text label | Pending |
-| STYLE-05 | — | Empty vs. no-results states | Render with distinct component states/classes, not the same markup | Pending |
+| UI-09 | AC-15 | Mocked zero-ticket response, no filters active | Empty-state message + Create Ticket action shown | Pass |
+| UI-10 | AC-16 | Mocked zero-match response, filter active | No-results message + Clear-filters action shown | Pass |
+| UI-11 | AC-13 | Typing in search | Triggers a re-fetch with the `search` query param set | Pass |
+| UI-12 | AC-19 | Change Requester action | List clears then reloads for the new Requester | Pass |
+| UI-13 | AC-17 | Clicking "next page" | Triggers a re-fetch with the incremented `page` param | Pass |
+| UI-14 | AC-02 | No Requester currently selected | Component redirects to the Selection screen | Pass |
+| STYLE-03 | — | Priority/status badges | Each badge renders a color class **and** visible text label | Pass |
+| STYLE-05 | — | Empty vs. no-results states | Render with distinct component states/classes, not the same markup | Pass |
 
 ### UI component — `client/tests/lab-02/RequesterTicketDetail.test.tsx`
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-15 | AC-20 | Mocked owned-ticket response | All fields render read-only with the returned values | Pending |
-| UI-16 | AC-21 | Mocked `404` response | "Ticket not found" state shown, no partial ticket data rendered | Pending |
-| UI-17 | AC-23 | Removed Attachment in the response | Row shows "Unavailable", download control disabled | Pending |
-| UI-18 | AC-26 | Soft-remove action with a reason typed | Calls `DELETE` with the reason, row updates to removed state | Pending |
+| UI-15 | AC-20 | Mocked owned-ticket response | All fields render read-only with the returned values | Pass |
+| UI-16 | AC-21 | Mocked `404` response | "Ticket not found" state shown, no partial ticket data rendered | Pass |
+| UI-17 | AC-23 | Removed Attachment in the response | Row shows "Unavailable", download control disabled | Pass |
+| UI-18 | AC-26 | Soft-remove action with a reason typed | Calls `DELETE` with the reason, row updates to removed state | Pass |
 
 ### UI component — `client/tests/lab-02/AttachmentSection.test.tsx`
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-19 | AC-22 | Active Attachment row | Download control is present and points at the correct endpoint | Pending |
-| UI-20 | AC-25 | Adding a file when 5 are already active | Client-side limit check blocks the request before any `fetch` call | Pending |
+| UI-19 | AC-22 | Active Attachment row | Download control is present and points at the correct endpoint | Pass |
+| UI-20 | AC-25 | Adding a file when 5 are already active | Client-side limit check blocks the request before any `fetch` call | Pass |
 
 ### UI component — `client/tests/lab-02/DevRequesterSelector.test.tsx` *(additional file, see §1)*
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-21 | AC-27 | Mocked empty active-Requester list | Empty-state message shown, Continue stays disabled | Pending |
-| UI-22 | AC-28 | Mocked API failure | Safe failure state shown, no unhandled error/crash | Pending |
-| UI-23 | AC-30 | Tab-only keyboard navigation | Dropdown → Continue both reachable with a visible focus ring | Pending |
+| UI-21 | AC-27 | Mocked empty active-Requester list | Empty-state message shown, Continue stays disabled | Pass |
+| UI-22 | AC-28 | Mocked API failure | Safe failure state shown, no unhandled error/crash | Pass |
+| UI-23 | AC-30 | Tab-only keyboard navigation | Dropdown → Continue both reachable with a visible focus ring | Pass |
 
 ### Responsive/visual — `e2e/lab-02/visual-responsive.spec.ts` *(additional file, see §1)*
 
