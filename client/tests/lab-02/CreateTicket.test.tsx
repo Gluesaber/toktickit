@@ -3,23 +3,29 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import CreateTicketPage from "../../src/pages/CreateTicketPage.js";
-import { RequesterProvider } from "../../src/context/RequesterContext.js";
+import { AuthProvider } from "../../src/context/AuthContext.js";
 import * as api from "../../src/api.js";
 import { ApiError, Ticket } from "../../src/api.js";
 
 const CATEGORIES = [{ id: 1, name: "Hardware" }];
 const RELATED_SYSTEMS = [{ id: 1, name: "Corporate Laptop" }];
 
+// Issue 3-3 (Lab 3) — identity now comes from the authenticated session (BR-03/BR-17), not a
+// selected Requester read from localStorage; getMe() is mocked instead of seeding localStorage.
 function renderPage() {
-  window.localStorage.setItem(
-    "toktickit.selectedRequester",
-    JSON.stringify({ id: 1, name: "Alex Rivera", email: "alex.rivera@example.edu" })
-  );
+  vi.spyOn(api, "getMe").mockResolvedValue({
+    id: 1,
+    name: "Alex Rivera",
+    email: "alex.rivera@example.edu",
+    role: "REQUESTER",
+    isActive: true,
+    mustChangePassword: false,
+  });
   return render(
     <MemoryRouter>
-      <RequesterProvider>
+      <AuthProvider>
         <CreateTicketPage />
-      </RequesterProvider>
+      </AuthProvider>
     </MemoryRouter>
   );
 }
@@ -44,7 +50,6 @@ async function fillValidForm(user: ReturnType<typeof userEvent.setup>) {
 
 describe("CreateTicketPage", () => {
   beforeEach(() => {
-    window.localStorage.clear();
     vi.spyOn(api, "getCategories").mockResolvedValue(CATEGORIES);
     vi.spyOn(api, "getRelatedSystems").mockResolvedValue(RELATED_SYSTEMS);
   });
@@ -238,7 +243,7 @@ describe("CreateTicketPage", () => {
 
     expect(await screen.findByText("TK-2026-000001")).toBeInTheDocument();
     await waitFor(() => {
-      expect(uploadSpy).toHaveBeenCalledWith(1, 1, expect.objectContaining({ name: "photo.jpg" }));
+      expect(uploadSpy).toHaveBeenCalledWith(1, expect.objectContaining({ name: "photo.jpg" }));
     });
     expect(await screen.findByText("Uploaded")).toBeInTheDocument();
   });

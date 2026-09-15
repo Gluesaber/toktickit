@@ -95,8 +95,19 @@ uniformly: **every `requesterId` query parameter or body field is removed.** The
 Requester from the authenticated session (BR-17) instead; a `requesterId` present anywhere in a request
 body is silently ignored, never treated as a validation error or an override (BR-03, AC-12).
 
-`GET /api/tickets/:id`'s response gains one field beyond Lab 2's shape — `comments`, the Ticket's Public
-Comments (§4) — and, when `requesterConfirmedResolvedAt` is set, that timestamp:
+One Lab 2 error case is no longer reachable as a result: `POST /api/tickets`'s `400 INVALID_REQUESTER`
+existed to reject a client-supplied `requesterId` that didn't reference an active Requester
+(`docs/lab-02/api-spec.md` §2) — since `requireAuth` already guarantees the session's user is active
+before any route handler runs, and the id itself can no longer be supplied by the client at all, that
+lookup and its error code are removed from this endpoint entirely (Issue 3-3).
+
+Also removed entirely: `GET /api/requesters` (Issue 2-3's Development Requester Selector listing) — the
+screen it served no longer exists (BR-39), and nothing else ever called it.
+
+`GET /api/tickets/:id`'s response gains fields beyond Lab 2's shape. As of Issue 3-3: `comments` (the
+Ticket's Public Comments, §4) and `requesterConfirmedResolvedAt`. `ownerId`/`itPriority` are **not** part
+of the response yet — those columns don't exist until Issue 3-4's migration; the JSON below shows the
+full cumulative end-state this document describes, not what Issue 3-3 alone returns:
 ```json
 {
   "...": "...(all Lab 2 fields unchanged)...",

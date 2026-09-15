@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ApiError, TicketDetail, getTicket } from "../api.js";
-import { useRequester } from "../context/RequesterContext.js";
+import { ApiError, Comment, TicketDetail, getTicket, markProblemResolved } from "../api.js";
 import { PriorityBadge, StatusBadge } from "../components/Badges.js";
 import AttachmentSection from "../components/AttachmentSection.js";
+import CommentsSection from "../components/CommentsSection.js";
 
 // Issue 2-6 (Lab 2) — Requester Ticket Detail: read-only ticket fields + attachments.
 // docs/lab-02/ui-spec.md §6, specification.md FR-12/FR-13, BR-12/BR-40, AC-20/AC-21.
 // Issue 2-7 (Lab 2) — the Attachment section is now the real add/download/remove UI.
+// Issue 3-3 (Lab 3) — identity comes from the session now, not a selected Requester (BR-03/BR-17);
+// adds Public Comments and "Problem Appears Resolved" (BR-04/BR-25, ui-spec.md §5).
 type LoadState = "loading" | "ready" | "not-found" | "failure";
+const TERMINAL_STATUSES = ["RESOLVED", "CLOSED", "CANCELLED"];
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString();
@@ -16,16 +19,17 @@ function formatDateTime(iso: string): string {
 
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { requester } = useRequester();
 
   const [state, setState] = useState<LoadState>("loading");
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
+  const [resolvedBusy, setResolvedBusy] = useState(false);
+  const [resolvedError, setResolvedError] = useState<string | null>(null);
 
   async function load() {
-    if (!requester || !id) return;
+    if (!id) return;
     setState("loading");
     try {
-      const result = await getTicket(Number(id), requester.id);
+      const result = await getTicket(Number(id));
       setTicket(result);
       setState("ready");
     } catch (err) {
@@ -40,7 +44,25 @@ export default function TicketDetailPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, requester?.id]);
+  }, [id]);
+
+  function handleCommentPosted(comment: Comment) {
+    setTicket((prev) => (prev ? { ...prev, comments: [...prev.comments, comment] } : prev));
+  }
+
+  async function handleMarkResolved() {
+    if (!ticket) return;
+    setResolvedBusy(true);
+    setResolvedError(null);
+    try {
+      const result = await markProblemResolved(ticket.id);
+      setTicket((prev) => (prev ? { ...prev, requesterConfirmedResolvedAt: result.requesterConfirmedResolvedAt } : prev));
+    } catch (err) {
+      setResolvedError(err instanceof ApiError ? err.message : "Unable to update this ticket.");
+    } finally {
+      setResolvedBusy(false);
+    }
+  }
 
   if (state === "loading") {
     return <p className="text-muted">Loading ticket…</p>;
@@ -157,12 +179,39 @@ export default function TicketDetailPage() {
       </div>
 
       {/* Attachment section — visually separated from the read-only fields above */}
-      <AttachmentSection
-        ticketId={ticket.id}
-        requesterId={requester!.id}
-        attachments={ticket.attachments}
-        onRefresh={load}
-      />
+      <AttachmentSection ticketId={ticket.id} attachments={ticket.attachments} onRefresh={load} />
+
+      {/* Issue 3-3 — "Problem Appears Resolved": informational only, never changes Current Status
+          (BR-25). Hidden once the ticket is already Resolved/Closed/Cancelled. */}
+      <div className="card mt-3">
+        <div className="card-body">
+          <h2 className="h6 card-title">Problem Status</h2>
+          {ticket.requesterConfirmedResolvedAt ? (
+            <p className="mb-0 text-muted small">
+              You indicated this problem appears resolved on {formatDateTime(ticket.requesterConfirmedResolvedAt)}.
+            </p>
+          ) : TERMINAL_STATUSES.includes(ticket.currentStatus) ? null : (
+            <>
+              {resolvedError && (
+                <div className="text-danger small mb-2" role="alert">
+                  {resolvedError}
+                </div>
+              )}
+              <button
+                type="button"
+                className={`btn btn-outline-secondary btn-sm${resolvedBusy ? " btn-busy" : ""}`}
+                disabled={resolvedBusy}
+                onClick={handleMarkResolved}
+              >
+                {resolvedBusy ? "Saving…" : "Mark Problem as Resolved"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Issue 3-3 — Public Comments */}
+      <CommentsSection ticketId={ticket.id} comments={ticket.comments} onPosted={handleCommentPosted} />
     </div>
   );
 }

@@ -102,7 +102,13 @@ cd client
 npm run dev      # http://localhost:5173
 ```
 
-Open `http://localhost:5173` in a browser. You will land on the **Development Requester Selector** — pick a requester to simulate a logged-in user (this is a Lab 2 testing mechanism, not real authentication). From there you can create tickets, browse your ticket list with search/filter/sort/pagination, view ticket detail, and manage attachments (upload, download, soft-remove).
+Open `http://localhost:5173` in a browser. You will land on the **Login** screen — sign in with any
+seeded account above (§4a) and its shared initial password. On first login you'll be required to set a
+new password before continuing (mandatory first-login password change). Once in, Requester accounts can
+create tickets, browse their ticket list with search/filter/sort/pagination, view ticket detail, manage
+attachments (upload, download, soft-remove), post Public Comments, and indicate a problem appears
+resolved. The Development Requester Selector from Lab 2 no longer exists — ticket ownership now comes
+entirely from the authenticated session.
 
 ## 6. Run tests
 

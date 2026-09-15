@@ -90,15 +90,20 @@ added when 3-3 actually gates a route with it.
 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| API-19 | AC-11 | `GET /api/tickets` as an authenticated Requester | Only that Requester's own tickets returned, no `requesterId` param needed | Pending |
-| API-20 | — | Every Lab 2 AC (`docs/lab-02/specification.md` §9) re-run against the session-authenticated endpoints | All still pass unchanged | Pending |
-| API-21 | AC-14, BR-26–BR-28 | `POST /api/tickets/:id/comments`, valid content | `201`, `author`/`createdAt` backend-assigned | Pending |
-| API-22 | BR-26 | Comment with blank/whitespace-only content | `400 VALIDATION_ERROR` | Pending |
-| API-23 | AC-15, BR-25 | `PATCH .../resolved-indication` on an open owned ticket | `200`, `requesterConfirmedResolvedAt` set, `currentStatus` unchanged | Pending |
-| API-24 | BR-25 | Same action on an already-Resolved ticket | `409 TICKET_ALREADY_TERMINAL` | Pending |
-| API-25 | AC-25, BR-24 | `PATCH .../status {CANCELLED}` on own ticket in New | `200`, `currentStatus: CANCELLED` | Pending |
-| API-26 | BR-24 | Same action on own ticket in In Progress | `409 TRANSITION_NOT_PERMITTED` | Pending |
-| API-27 | BR-24 | `PATCH .../status {RESOLVED}` attempted by a Requester | `409 TRANSITION_NOT_PERMITTED` | Pending |
+| API-19 | AC-11 | `GET /api/tickets` as an authenticated Requester | Only that Requester's own tickets returned, no `requesterId` param needed | Pass |
+| API-20 | — | Every Lab 2 AC (`docs/lab-02/specification.md` §9) re-run against the session-authenticated endpoints | All still pass unchanged | Pass |
+| API-21 | AC-14, BR-26–BR-28 | `POST /api/tickets/:id/comments`, valid content | `201`, `author`/`createdAt` backend-assigned | Pass |
+| API-22 | BR-26 | Comment with blank/whitespace-only content | `400 VALIDATION_ERROR` | Pass |
+| API-23 | AC-15, BR-25 | `PATCH .../resolved-indication` on an open owned ticket | `200`, `requesterConfirmedResolvedAt` set, `currentStatus` unchanged | Pass |
+| API-24 | BR-25 | Same action on an already-Resolved ticket | `409 TICKET_ALREADY_TERMINAL` | Pass |
+
+**API-25/26/27 (Requester self-Cancel) are not part of this issue.** Confirmed with the user ahead of
+implementation (`specification.md` §11 "Cancel scope" decision, referencing GitHub Issue #33's own text,
+which never mentions status/cancel): the entire `PATCH /api/tickets/:id/status` endpoint — every IT-Staff
+transition and the Requester's own Cancel-from-New/Open case together — is built once, in Issue 3-5, not
+split across two issues. Those three IDs are retired from this file's plan; Issue 3-5's own test plan
+defines whatever IDs it needs for the full transition matrix, AC-25 included (see §3's traceability note
+below).
 
 ### API — `server/tests/lab-03/staff-queue.api.test.ts`
 
@@ -182,10 +187,10 @@ Management screens exist yet to scope. Both noted directly in `Login.test.tsx`.
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-10 | AC-14 | Post a Public Comment | New comment appears at the bottom of the list immediately | Pending |
-| UI-11 | AC-15 | Click "Mark Problem as Resolved" | Button replaced by a confirmation line; status badge unchanged | Pending |
-| UI-12 | BR-25 | Ticket already Resolved/Closed/Cancelled | Action button is not rendered | Pending |
-| UI-13 | AC-04 | Static check of this screen's own code path | No component or request on this screen can render Note data | Pending |
+| UI-10 | AC-14 | Post a Public Comment | New comment appears at the bottom of the list immediately | Pass |
+| UI-11 | AC-15 | Click "Mark Problem as Resolved" | Button replaced by a confirmation line; status badge unchanged | Pass |
+| UI-12 | BR-25 | Ticket already Resolved/Closed/Cancelled | Action button is not rendered | Pass |
+| UI-13 | AC-04 | Static check of this screen's own code path | No component or request on this screen can render Note data | Pass |
 
 ### UI component — `client/tests/lab-03/StaffTicketQueue.test.tsx`
 
@@ -265,7 +270,7 @@ Management screens exist yet to scope. Both noted directly in `Login.test.tsx`.
 | AC-04 | API-14, UI-13 | AC-22 | API-38, UI-19, UI-20 |
 | AC-05 | API-04, UI-01, E2E-02 | AC-23 | API-37, E2E-03 |
 | AC-06 | UI-05, E2E-01 | AC-24 | API-41, E2E-03 |
-| AC-07 | API-06, UI-07 | AC-25 | API-25, E2E-07 |
+| AC-07 | API-06, UI-07 | AC-25 | *(Issue 3-5 — see §2's Cancel-scope note)* |
 | AC-08 | API-07, UI-08 | AC-26 | API-17, E2E-04 |
 | AC-09 | API-09, E2E-01 | AC-27 | API-45, UI-22 |
 | AC-10 | API-10, E2E-01 | AC-28 | API-47, E2E-05 |
@@ -302,28 +307,34 @@ before a UI Issue is marked Done is a human look at the actual screenshots again
 ## 6. Final Results
 
 **In progress.** Updated after each landed Issue — following the same discipline `docs/lab-02/tests.md`
-§6 used — not reconstructed in one pass at the end. Current as of **Issue 3-2 (Authentication
-Foundation)**, the only Lab 3 Issue implemented so far; every other Issue's rows remain `Pending` below
-until their own branch lands. A full staleness sweep (every `Pending`/`TODO` row reconciled against real,
-verified state) still happens as part of Issue 3-8, per the doc-finalization habit this project has
-already needed twice in Lab 2 — but that's a final audit, not the only time this table gets touched.
+§6 used — not reconstructed in one pass at the end. Current as of **Issue 3-3 (Requester Regression)**;
+every other Issue's rows remain `Pending` below until their own branch lands. A full staleness sweep
+(every `Pending`/`TODO` row reconciled against real, verified state) still happens as part of Issue 3-8,
+per the doc-finalization habit this project has already needed twice in Lab 2 — but that's a final audit,
+not the only time this table gets touched.
+
+The API "Planned" total drops from 100's original 55 to 52 this issue: API-25/26/27 (Requester
+self-Cancel) are retired from this file's plan per the Cancel-scope decision (§2) rather than carried as
+permanently `Pending` — Issue 3-5 will add its own IDs for the full transition matrix when it's planned in
+detail, which will likely restore or exceed this sprint total.
 
 | Level | Planned (sprint total) | Actual so far | Passing | Failing | Deferred |
 |---|---|---|---|---|---|
 | Unit | 4 | 2 (UNIT-01, 02) | 2 | 0 | 0 |
-| API | 55 | 13 (API-01–11, 53, 54) | 13 | 0 | 0 |
-| UI component | 27 | 9 (UI-01–05, 07–09, 06) | 8 | 0 | 1 (UI-06) |
+| API | 52 | 19 (API-01–24, 53, 54) | 19 | 0 | 0 |
+| UI component | 27 | 13 (UI-01–13) | 12 | 0 | 1 (UI-06) |
 | UI style | 2 | 0 | 0 | 0 | 0 |
 | Responsive | 5 | 0 | 0 | 0 | 0 |
 | E2E | 7 | 0 | 0 | 0 | 0 |
-| **Total** | **100** | **24** | **23** | **0** | **1** |
+| **Total** | **97** | **34** | **33** | **0** | **1** |
 
 "Actual so far" counts planned Test IDs with a real, verified implementation. The real `npm test` suites
-run more raw cases than that (`auth.api.test.ts` alone has 14 `it()` blocks against 11 planned IDs — a
-few, like the missing-field and idempotent-logout checks, don't map to a planned ID at all), same pattern
-Lab 2 saw (`docs/lab-02/tests.md` §6: actual execution count grew past the original per-ID estimate as
-real edge cases were found). Re-run twice (once mid-implementation, once after fixing an unrelated
-manual-testing data-pollution issue caught by `API-54`) with zero flakes; see §7.
+run more raw cases than that (102 server + 40 client `it()` blocks as of this issue, against 32 planned
+IDs combined) — extra edge cases like the missing-field/idempotent-logout/role-leak checks don't map to a
+single planned ID each, same pattern Lab 2 saw (`docs/lab-02/tests.md` §6: actual execution count grew
+past the original per-ID estimate as real edge cases were found). Re-run repeatedly across both Issue 3-2
+and 3-3 (including after fixing two unrelated manual-testing data-pollution incidents, both caught by
+`API-54`) with zero flakes; see §7.
 
 ## 7. Known Limitations or Deferred Tests
 
@@ -346,3 +357,9 @@ and are recorded now so they aren't mistaken for gaps later:
   and resetting `mustChangePassword` to `true`), then re-verified `npm test` clean. Not a schema or
   migration defect — a reminder that manual verification should prefer disposable accounts over the
   documented seed/demo ones where the two aren't the same account being verified on purpose.
+- **The same incident recurred once, independently, before Issue 3-3 started** — `alex.rivera@example.edu`
+  was found with `mustChangePassword: false` again at the start of this issue's work, most likely from
+  manual testing during PR #40's review. Restored the same way. Issue 3-3's own manual browser
+  verification used a disposable `manual-verify@example.test` account instead (created and left in place,
+  same as other `@example.test` fixture rows this project's test suites already leave behind), precisely
+  to avoid a third recurrence.

@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import LoginPage from "../../src/pages/LoginPage.js";
 import { AuthProvider, useAuth } from "../../src/context/AuthContext.js";
 import * as api from "../../src/api.js";
-import { ApiError } from "../../src/api.js";
+import { ApiError, type User } from "../../src/api.js";
 
 // docs/lab-03/tests.md — client/tests/lab-03/Login.test.tsx (UI-01..06).
 
@@ -70,7 +70,7 @@ describe("LoginPage", () => {
 
   // UI-04 (AC-11-equivalent busy state)
   it("shows a busy state on submit and disables the button while the request is in flight", async () => {
-    let resolveLogin!: (value: unknown) => void;
+    let resolveLogin!: (value: User) => void;
     vi.spyOn(api, "login").mockReturnValue(new Promise((resolve) => (resolveLogin = resolve)));
     const user = userEvent.setup();
     renderLogin();
