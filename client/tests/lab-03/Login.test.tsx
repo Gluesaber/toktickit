@@ -82,7 +82,13 @@ describe("LoginPage", () => {
     const button = screen.getByRole("button", { name: /logging in/i });
     expect(button).toBeDisabled();
 
+    // Resolve and wait for the resulting state updates (LoginPage's setBusy(false), AuthContext's
+    // setUser) to flush before the test ends — otherwise React warns that an update happened outside
+    // act() once the mock promise settles after this test function has already returned.
     resolveLogin({ id: 1, name: "Someone", email: "someone@example.test", role: "REQUESTER", isActive: true, mustChangePassword: false });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^log in$/i })).toBeInTheDocument();
+    });
   });
 
   // UI-05 (AC-06) — successful login with mustChangePassword: true routes past Login (verified via

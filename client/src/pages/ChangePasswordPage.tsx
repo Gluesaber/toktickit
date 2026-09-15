@@ -16,10 +16,15 @@ export default function ChangePasswordPage() {
   const [busy, setBusy] = useState(false);
 
   function validate(): boolean {
+    // Both checks run independently (not else-if) so a too-short *and* mismatched pair shows both
+    // messages together, matching this codebase's established validation convention (server/src/app.ts's
+    // Create Ticket route: "every problem is collected so the client can show all field messages from
+    // one response, not one-at-a-time") rather than making the user fix one error before seeing the next.
     const errors: { newPassword?: string; confirmPassword?: string } = {};
     if (newPassword.length < MIN_PASSWORD_LENGTH) {
       errors.newPassword = `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
-    } else if (newPassword !== confirmPassword) {
+    }
+    if (newPassword !== confirmPassword) {
       errors.confirmPassword = "Passwords do not match.";
     }
     setFieldErrors(errors);
