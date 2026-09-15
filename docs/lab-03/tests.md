@@ -50,7 +50,7 @@ Six levels, per the labsheet's minimum coverage requirement: **Unit**, **API**, 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
 | UNIT-03 | BR-22, BR-23, BR-24, §5.2 | Transition-matrix pure function, every listed (from, to, role) triple | Each returns allowed | Pending |
-| UNIT-04 | §5.2 | Every pair not listed in the matrix | Returns not-allowed, including any pair out of Closed/Cancelled | Pending |
+| UNIT-04 | §5.2 | Every pair not listed in the matrix | Returns not-allowed, including any pair out of Cancelled (terminal); Closed → Reopened is a listed, allowed pair, not a not-allowed case | Pending |
 
 ### API — `server/tests/lab-03/auth.api.test.ts`
 
@@ -104,6 +104,7 @@ Six levels, per the labsheet's minimum coverage requirement: **Unit**, **API**, 
 | API-31 | §7 | `ownerId=unassigned` | Only tickets with `ownerId: null` returned | Pending |
 | API-32 | §7 | Invalid `sortBy` value | `400 VALIDATION_ERROR` | Pending |
 | API-33 | §7 | `page=0` or non-numeric | Silently clamped to `1` | Pending |
+| API-55 | §7, `ui-spec.md` §6.3 | `categoryId` filter | Only tickets in that Category returned | Pending |
 
 ### API — `server/tests/lab-03/staff-ticket-detail.api.test.ts`
 
@@ -298,12 +299,12 @@ habit this project has already needed twice in Lab 2.
 | Level | Planned | Actual | Passing | Failing | Deferred |
 |---|---|---|---|---|---|
 | Unit | 4 | — | — | — | — |
-| API | 54 | — | — | — | — |
+| API | 55 | — | — | — | — |
 | UI component | 27 | — | — | — | — |
 | UI style | 2 | — | — | — | — |
 | Responsive | 5 | — | — | — | — |
 | E2E | 7 | — | — | — | — |
-| **Total (planned)** | **99** | — | — | — | — |
+| **Total (planned)** | **100** | — | — | — | — |
 
 ## 7. Known Limitations or Deferred Tests
 

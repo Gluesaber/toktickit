@@ -20,7 +20,7 @@ introduced. This section only adds what Lab 3 needs on top.
 |---|---|---|
 | `--zg-info-bg` | `#E3F1FB` | Status badges for "actively moving forward" states (Open), role badge for IT Staff |
 | `--zg-info-text` | `#1B4C73` | Text/border for the above |
-| `--zg-neutral-bg` | `#E7EAE8` | Status badges for a *successfully* terminal state (Closed) |
+| `--zg-neutral-bg` | `#E7EAE8` | Status badge for a completed-and-inactive state (Closed) |
 | `--zg-neutral-text` | `#5B6B63` | Same as `--zg-text-muted` — text for the above |
 
 Every existing token (`--zg-primary`, `--zg-secondary`, `--zg-pale`, `--zg-warning`/`--zg-warning-bg`,
@@ -38,9 +38,9 @@ introducing more one-off colors than necessary.
 | `IN_PROGRESS` | `#D9EDE1` | `--zg-secondary` | "In Progress" | active work, strongest "green" signal after New |
 | `WAITING_FOR_REQUESTER` | `--zg-warning-bg` | `--zg-warning` | "Waiting for Requester" | blocked on someone, amber matches the existing warning semantics |
 | `RESOLVED` | `--zg-pale` | `--zg-secondary` | "Resolved" | positive but distinct from New's primary-green |
-| `CLOSED` | `--zg-neutral-bg` | `--zg-neutral-text` | "Closed" | successful terminal state — de-emphasized gray, not colored |
+| `CLOSED` | `--zg-neutral-bg` | `--zg-neutral-text` | "Closed" | completed and currently inactive — de-emphasized gray, not colored; still reopenable (§5.2) |
 | `REOPENED` | `#FDE6D8` | `#9A3412` | "Reopened" | reuses the existing "High priority" orange — signals renewed attention needed |
-| `CANCELLED` | `--zg-error-bg` | `--zg-error` | "Cancelled" | terminal but did *not* complete — the one status badge sharing the error palette |
+| `CANCELLED` | `--zg-error-bg` | `--zg-error` | "Cancelled" | terminal — the only status that never reopens (§5.2) — and did *not* complete, the one status badge sharing the error palette |
 
 ### 1.3 Role Badges (new component: `RoleBadge`)
 
@@ -163,7 +163,9 @@ to avoid the "unreadable mega-grid" the labsheet warns against (§8.3) — eight
 
 - **Search**: single text box, matches Ticket Number or Summary (same pattern as My Tickets).
 - **Filters**: Current Status, Requested Priority, IT Priority, Ticket Owner (including an explicit
-  "Unassigned" option) — each a `<select>`; "Clear filters" tertiary link once any filter/search is active.
+  "Unassigned" option), Category — each a `<select>`; "Clear filters" tertiary link once any filter/search
+  is active. Category is a filter rather than a table column (§6.2) precisely so it stays reachable
+  without contributing to the "unreadable mega-grid" the labsheet warns against.
 - **Sort**: Created Date (default: newest first) / Current Status / IT Priority / Last Updated, plus
   direction toggle — reuses the exact sort-control component from My Tickets.
 - **Pagination**: identical page-size (10/25/50) + prev/next + indicator pattern as My Tickets.

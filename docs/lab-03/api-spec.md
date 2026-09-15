@@ -235,6 +235,7 @@ Requester can never reach Note content through any query-parameter manipulation 
 | `currentStatus` | no | any of the 8 status enum values | none | other value → `400 VALIDATION_ERROR` |
 | `requestedPriority` / `itPriority` | no | `LOW \| MEDIUM \| HIGH \| URGENT` | none | other value → `400 VALIDATION_ERROR` |
 | `ownerId` | no | integer, or the literal string `unassigned` | none | non-numeric and not `unassigned` → `400 VALIDATION_ERROR` |
+| `categoryId` | no | integer | none | non-numeric → `400`; a well-formed id with no matching row simply matches zero tickets (not an error), same rule as Lab 2's `GET /api/tickets` (`docs/lab-02/api-spec.md` §4) |
 | `sortBy` | no | `createdAt \| currentStatus \| itPriority \| updatedAt` | `createdAt` | other value → `400 VALIDATION_ERROR` |
 | `sortDir` | no | `asc \| desc` | `desc` | other value → `400 VALIDATION_ERROR` |
 | `page` | no | integer ≥ 1 | `1` | invalid → silently reset to `1` (same rationale as Lab 2, `docs/lab-02/api-spec.md` §4) |

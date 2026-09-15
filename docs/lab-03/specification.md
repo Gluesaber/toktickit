@@ -228,7 +228,8 @@ below also applies to Administrator, in addition to Administrator's own User Man
 
 ### 5.2. Status Transition Matrix
 
-Closed and Cancelled are terminal — no transition leads out of either.
+Cancelled is terminal — no transition leads out of it. Closed is not: a Closed ticket can still move to
+Reopened if the issue recurs, distinct from Cancelled's "never valid to begin with" semantics.
 
 | From | To | Who |
 |---|---|---|
@@ -285,6 +286,11 @@ Relationships: one `User` (role Requester) → many `Ticket` (as `requester`); o
 → many `Ticket` (as `owner`, optional); one `Ticket` → many `Comment`; one `Ticket` → many `Note`; one `User`
 → many `Comment`/`Note` (as `author`). Existing `Category`, `RelatedSystem`, and `Attachment` relationships
 are unchanged.
+
+**Seed data minimums** (labsheet §5.3): at least 4 active + 1 inactive Requester `User` rows, 3 active + 1
+inactive IT Staff `User` rows, and 1 active Administrator `User` row, plus realistic Tickets distributed
+across Requesters/statuses/priorities/assigned-and-unassigned ownership, and example Comments/Notes that
+don't expose sensitive information — all idempotent to re-run (BR-37/BR-38).
 
 **Migration strategy**: rename the `Requester` table/model to `User` in place (same primary keys), add the
 new columns with safe defaults (`mustChangePassword` defaults `true` so every migrated row lands in the
@@ -450,8 +456,10 @@ Every endpoint above except `POST /api/auth/login` requires a valid session (BR-
   explicitly permits it." Decided with the user (ahead of drafting) to grant Administrator full IT Staff
   parity on Ticket operations, in addition to User Management — see §5.1. This also satisfies the given
   BR-04's requirement that Internal Notes be visible to Administrator.
-- **Status transition matrix** (§5.2): worked out with the user ahead of drafting. Closed and Cancelled are
-  terminal; a Requester's only status power is self-Cancel from New/Open; every other transition is
+- **Status transition matrix** (§5.2): worked out with the user ahead of drafting. Only Cancelled is
+  terminal (decided explicitly); Closed can still move to Reopened, since "the issue recurred after being
+  closed" is a normal, expected path that Cancelled's "shouldn't have been opened" semantics don't share.
+  A Requester's only status power is self-Cancel from New/Open; every other transition is
   IT-Staff/Administrator-only; a Requester's Public Comment reply while Waiting for Requester does not
   auto-transition the ticket back to In Progress (kept manual so a comment alone can't silently change
   ticket state).
