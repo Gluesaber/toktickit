@@ -69,6 +69,25 @@ npx prisma migrate dev --name init
 npx prisma db seed
 ```
 
+## 4a. Seeded accounts (local dev only)
+
+Every seeded account shares one initial password — `ChangeMe123!` — and must change it at first
+login (`mustChangePassword: true`). This is a documented, local-development-only credential; it is
+never a real password and must never be reused for anything real.
+
+| Email | Role | Active |
+|---|---|---|
+| alex.rivera@example.edu | Requester | yes |
+| priya.nair@example.edu | Requester | yes |
+| jordan.lee@example.edu | Requester | yes |
+| morgan.chen@example.edu | Requester | yes |
+| sam.whitfield@example.edu | Requester | no |
+| taylor.brooks@example.edu | IT Staff | yes |
+| casey.nguyen@example.edu | IT Staff | yes |
+| riley.osei@example.edu | IT Staff | yes |
+| drew.kowalski@example.edu | IT Staff | no |
+| jamie.whitfield@example.edu | Administrator | yes |
+
 ## 5. Run the app
 
 In two separate terminals:

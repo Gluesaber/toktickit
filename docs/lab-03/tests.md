@@ -42,8 +42,8 @@ Six levels, per the labsheet's minimum coverage requirement: **Unit**, **API**, 
 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UNIT-01 | BR-06 | bcrypt hash/compare round-trip | Correct password compares true; wrong password compares false | Pending |
-| UNIT-02 | BR-14 | New-password length validator | <8 chars rejected; ≥8 chars accepted | Pending |
+| UNIT-01 | BR-06 | bcrypt hash/compare round-trip | Correct password compares true; wrong password compares false | Pass |
+| UNIT-02 | BR-14 | New-password length validator | <8 chars rejected; ≥8 chars accepted | Pass |
 
 ### Unit — `server/tests/lab-03/status-transition.unit.test.ts`
 
@@ -56,17 +56,23 @@ Six levels, per the labsheet's minimum coverage requirement: **Unit**, **API**, 
 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| API-01 | AC-01 | `POST /api/auth/login` valid credentials | `200`, session cookie set, correct role in body | Pending |
-| API-02 | BR-07 | Login with an unknown email | `401 INVALID_CREDENTIALS` | Pending |
-| API-03 | BR-07 | Login with a known email, wrong password | `401 INVALID_CREDENTIALS`, message identical to API-02 | Pending |
-| API-04 | AC-05, BR-08 | Login with correct credentials, `isActive = false` | `401 ACCOUNT_INACTIVE`, message distinct from API-02/03 | Pending |
-| API-05 | AC-02, BR-13 | Any protected endpoint while `mustChangePassword = true` | `403 PASSWORD_CHANGE_REQUIRED` | Pending |
-| API-06 | AC-07, BR-14 | `POST /api/auth/change-password`, new password <8 chars | `400 VALIDATION_ERROR` | Pending |
-| API-07 | AC-08, BR-14 | Change-password, mismatched confirmation | `400 VALIDATION_ERROR` | Pending |
-| API-08 | BR-15 | Change-password, valid | `200`, `mustChangePassword: false`, same session still authenticates | Pending |
-| API-09 | AC-09, BR-10 | Logout, then reuse the old cookie | `401 UNAUTHENTICATED` on the next request | Pending |
-| API-10 | AC-10, BR-11 | Any protected endpoint, no cookie | `401 UNAUTHENTICATED` | Pending |
-| API-11 | BR-16 | `GET /api/auth/me` | Returns id/name/email/role/isActive/mustChangePassword; never `passwordHash` | Pending |
+| API-01 | AC-01 | `POST /api/auth/login` valid credentials | `200`, session cookie set, correct role in body | Pass |
+| API-02 | BR-07 | Login with an unknown email | `401 INVALID_CREDENTIALS` | Pass |
+| API-03 | BR-07 | Login with a known email, wrong password | `401 INVALID_CREDENTIALS`, message identical to API-02 | Pass |
+| API-04 | AC-05, BR-08 | Login with correct credentials, `isActive = false` | `401 ACCOUNT_INACTIVE`, message distinct from API-02/03 | Pass |
+| API-05 | AC-02, BR-13 | Any protected endpoint while `mustChangePassword = true` | `403 PASSWORD_CHANGE_REQUIRED` | Pass* |
+| API-06 | AC-07, BR-14 | `POST /api/auth/change-password`, new password <8 chars | `400 VALIDATION_ERROR` | Pass |
+| API-07 | AC-08, BR-14 | Change-password, mismatched confirmation | `400 VALIDATION_ERROR` | Pass |
+| API-08 | BR-15 | Change-password, valid | `200`, `mustChangePassword: false`, same session still authenticates | Pass |
+| API-09 | AC-09, BR-10 | Logout, then reuse the old cookie | `401 UNAUTHENTICATED` on the next request | Pass |
+| API-10 | AC-10, BR-11 | Any protected endpoint, no cookie | `401 UNAUTHENTICATED` | Pass |
+| API-11 | BR-16 | `GET /api/auth/me` | Returns id/name/email/role/isActive/mustChangePassword; never `passwordHash` | Pass |
+
+\* API-05 is verified against `requirePasswordChanged` mounted on a throwaway test-only route, not a
+real business endpoint — as of Issue 3-2 no such endpoint exists yet (every Lab 2 endpoint is still
+unauthenticated; Issue 3-3 is what first composes this middleware onto a real route). The middleware
+itself is proven correct now rather than left untested until 3-3; full business-route coverage is
+added when 3-3 actually gates a route with it.
 
 ### API — `server/tests/lab-03/authorization.api.test.ts`
 
@@ -144,27 +150,33 @@ Six levels, per the labsheet's minimum coverage requirement: **Unit**, **API**, 
 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| API-53 | BR-37 | An existing Lab 2 seeded Ticket, post-migration | `requesterId` still resolves to the correct migrated `User` row | Pending |
-| API-54 | BR-38 | Every migrated seed Requester | Has a non-null `passwordHash` and `mustChangePassword: true` | Pending |
+| API-53 | BR-37 | An existing Lab 2 seeded Ticket, post-migration | `requesterId` still resolves to the correct migrated `User` row | Pass |
+| API-54 | BR-38 | Every migrated seed Requester | Has a non-null `passwordHash` and `mustChangePassword: true` | Pass |
 
 ### UI component — `client/tests/lab-03/Login.test.tsx`
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-01 | AC-05 | Mocked `ACCOUNT_INACTIVE` response | Distinct inactive-account message shown | Pending |
-| UI-02 | — | Submit with blank email/password | Field validation messages, no `fetch` call | Pending |
-| UI-03 | — | Mocked `INVALID_CREDENTIALS` response | Generic message shown, not attached to a specific field | Pending |
-| UI-04 | — | Submit clicked | Busy state shown, button disabled during the request | Pending |
-| UI-05 | AC-06 | Mocked successful login with `mustChangePassword: true` | Redirects to Change Password, not the main app | Pending |
-| UI-06 | — | Mocked login for each of the 3 roles | Shell renders only that role's nav links (§2 of `ui-spec.md`) | Pending |
+| UI-01 | AC-05 | Mocked `ACCOUNT_INACTIVE` response | Distinct inactive-account message shown | Pass |
+| UI-02 | — | Submit with blank email/password | Field validation messages, no `fetch` call | Pass |
+| UI-03 | — | Mocked `INVALID_CREDENTIALS` response | Generic message shown, not attached to a specific field | Pass |
+| UI-04 | — | Submit clicked | Busy state shown, button disabled during the request | Pass |
+| UI-05 | AC-06 | Mocked successful login with `mustChangePassword: true` | Redirects to Change Password, not the main app | Pass* |
+| UI-06 | — | Mocked login for each of the 3 roles | Shell renders only that role's nav links (§2 of `ui-spec.md`) | Deferred |
+
+\* UI-05 verifies the underlying `AuthContext` state (`status: authenticated`,
+`user.mustChangePassword: true`) rather than the actual route render — `LoginPage` is tested
+standalone, and the redirect itself lives in `App.tsx`'s gate. UI-06 is deferred: `AppShell`'s nav
+links are still `{My Tickets, Create Ticket}` regardless of role as of Issue 3-2 — no Queue/User
+Management screens exist yet to scope. Both noted directly in `Login.test.tsx`.
 
 ### UI component — `client/tests/lab-03/ChangePassword.test.tsx`
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-07 | AC-07 | New password <8 chars | Length message, no API call | Pending |
-| UI-08 | AC-08 | Mismatched confirmation field | Mismatch message, no API call | Pending |
-| UI-09 | — | Mocked success | Continues into the app without a second login prompt | Pending |
+| UI-07 | AC-07 | New password <8 chars | Length message, no API call | Pass |
+| UI-08 | AC-08 | Mismatched confirmation field | Mismatch message, no API call | Pass |
+| UI-09 | — | Mocked success | Continues into the app without a second login prompt | Pass |
 
 ### UI component — `client/tests/lab-03/RequesterTicketDetailExtensions.test.tsx` *(additional file, see §1)*
 
@@ -289,22 +301,29 @@ before a UI Issue is marked Done is a human look at the actual screenshots again
 
 ## 6. Final Results
 
-**Not yet started.** No Lab 3 Issue has landed as of this document's creation (Issue 3-1, drafted alongside
-`specification.md`/`ui-spec.md`/`api-spec.md`, before any implementation branch exists). This section is
-filled in incrementally as each Issue merges into `lab3-staging` — following the same discipline
-`docs/lab-02/tests.md` §6 used — and must be swept for staleness (every `Pending`/`TODO` row reconciled
-against real, verified state) as part of Issue 3-8 before Lab 3 is called done, per the doc-finalization
-habit this project has already needed twice in Lab 2.
+**In progress.** Updated after each landed Issue — following the same discipline `docs/lab-02/tests.md`
+§6 used — not reconstructed in one pass at the end. Current as of **Issue 3-2 (Authentication
+Foundation)**, the only Lab 3 Issue implemented so far; every other Issue's rows remain `Pending` below
+until their own branch lands. A full staleness sweep (every `Pending`/`TODO` row reconciled against real,
+verified state) still happens as part of Issue 3-8, per the doc-finalization habit this project has
+already needed twice in Lab 2 — but that's a final audit, not the only time this table gets touched.
 
-| Level | Planned | Actual | Passing | Failing | Deferred |
+| Level | Planned (sprint total) | Actual so far | Passing | Failing | Deferred |
 |---|---|---|---|---|---|
-| Unit | 4 | — | — | — | — |
-| API | 55 | — | — | — | — |
-| UI component | 27 | — | — | — | — |
-| UI style | 2 | — | — | — | — |
-| Responsive | 5 | — | — | — | — |
-| E2E | 7 | — | — | — | — |
-| **Total (planned)** | **100** | — | — | — | — |
+| Unit | 4 | 2 (UNIT-01, 02) | 2 | 0 | 0 |
+| API | 55 | 13 (API-01–11, 53, 54) | 13 | 0 | 0 |
+| UI component | 27 | 9 (UI-01–05, 07–09, 06) | 8 | 0 | 1 (UI-06) |
+| UI style | 2 | 0 | 0 | 0 | 0 |
+| Responsive | 5 | 0 | 0 | 0 | 0 |
+| E2E | 7 | 0 | 0 | 0 | 0 |
+| **Total** | **100** | **24** | **23** | **0** | **1** |
+
+"Actual so far" counts planned Test IDs with a real, verified implementation. The real `npm test` suites
+run more raw cases than that (`auth.api.test.ts` alone has 14 `it()` blocks against 11 planned IDs — a
+few, like the missing-field and idempotent-logout checks, don't map to a planned ID at all), same pattern
+Lab 2 saw (`docs/lab-02/tests.md` §6: actual execution count grew past the original per-ID estimate as
+real edge cases were found). Re-run twice (once mid-implementation, once after fixing an unrelated
+manual-testing data-pollution issue caught by `API-54`) with zero flakes; see §7.
 
 ## 7. Known Limitations or Deferred Tests
 
@@ -318,3 +337,12 @@ and are recorded now so they aren't mistaken for gaps later:
   handled correctly, which is the behavior that does exist.
 - **Cross-browser coverage** stays out of scope, same as Lab 2 (`docs/lab-02/tests.md` §7) — Playwright
   runs against Chromium only.
+- **Manual browser verification of Issue 3-2 mutated a real seeded account.** Logging in as
+  `alex.rivera@example.edu` through the actual UI to verify the login → change-password → app flow
+  legitimately flipped that account's `mustChangePassword` to `false` and changed its password — correct
+  app behavior, but it broke `API-54`'s assumption that every migrated seed Requester is still in its
+  fresh post-migration state, and would have broken the documented demo credentials (README "Seeded
+  accounts") for that one account. Restored via a one-off script (re-hashing the documented dev password
+  and resetting `mustChangePassword` to `true`), then re-verified `npm test` clean. Not a schema or
+  migration defect — a reminder that manual verification should prefer disposable accounts over the
+  documented seed/demo ones where the two aren't the same account being verified on purpose.

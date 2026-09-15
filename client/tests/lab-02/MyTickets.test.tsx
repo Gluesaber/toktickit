@@ -162,6 +162,18 @@ describe("MyTicketsPage", () => {
 describe("My Tickets access without a selected Requester", () => {
   it("shows the Development Requester Selection screen instead of My Tickets", async () => {
     window.localStorage.clear();
+    // Issue 3-2 (Lab 3) — App.tsx now has an outer AuthGate wrapping this inner Requester gate; an
+    // authenticated session (mustChangePassword: false) is mocked here so the test reaches the same
+    // RequesterGate/DevRequesterSelector behavior it exercised pre-Lab-3, unrelated to what this
+    // test is actually about (Requester selection, not login).
+    vi.spyOn(api, "getMe").mockResolvedValue({
+      id: 1,
+      name: "Test User",
+      email: "test-user@example.test",
+      role: "REQUESTER",
+      isActive: true,
+      mustChangePassword: false,
+    });
     vi.spyOn(api, "getRequesters").mockResolvedValue([
       { id: 1, name: "Alex Rivera", email: "alex.rivera@example.edu" },
     ]);

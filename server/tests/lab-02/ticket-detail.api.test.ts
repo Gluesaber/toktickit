@@ -16,9 +16,15 @@ beforeAll(async () => {
   const prisma = getPrisma();
   const unique = Date.now();
 
+  // Issue 3-2 (Lab 3) — `Requester` is now `User`, with required `passwordHash`/`role`; see
+  // attachments.api.test.ts's fixture for why the hash is a placeholder here.
   const [owner, otherOwner] = await Promise.all([
-    prisma.requester.create({ data: { name: "Ticket Detail Test Owner", email: `ticket-detail-owner-${unique}@example.test` } }),
-    prisma.requester.create({ data: { name: "Ticket Detail Test Other", email: `ticket-detail-other-${unique}@example.test` } }),
+    prisma.user.create({
+      data: { name: "Ticket Detail Test Owner", email: `ticket-detail-owner-${unique}@example.test`, role: "REQUESTER", passwordHash: "unused-in-lab2-fixture" },
+    }),
+    prisma.user.create({
+      data: { name: "Ticket Detail Test Other", email: `ticket-detail-other-${unique}@example.test`, role: "REQUESTER", passwordHash: "unused-in-lab2-fixture" },
+    }),
   ]);
   ownerId = owner.id;
   otherOwnerId = otherOwner.id;
@@ -38,7 +44,7 @@ beforeAll(async () => {
 
   // Deactivate now that the ticket exists (BR-21 only requires active at creation time) — keeps
   // these fixtures out of GET /api/requesters, same reasoning as my-tickets.api.test.ts.
-  await prisma.requester.updateMany({
+  await prisma.user.updateMany({
     where: { id: { in: [ownerId, otherOwnerId] } },
     data: { isActive: false },
   });

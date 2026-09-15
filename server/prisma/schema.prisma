@@ -32,16 +32,35 @@ model RelatedSystem {
   tickets Ticket[]
 }
 
-// Issue 2-2 (Lab 2) — the "Development Requester." Named `Requester`, not `DevRequester`: the
-// underlying entity (a person who submits tickets) is permanent, only the Lab 2 *selection
-// mechanism* around it is temporary (BR-40/BR-41). Lab 3 extends this same model with auth fields
-// instead of introducing a parallel identity model — see specification.md §11.
-model Requester {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+// Issue 3-2 (Lab 3) — REQUESTER/IT_STAFF/ADMINISTRATOR per specification.md §5.1. One role per user
+// in Lab 3 (BR — "multiple roles assigned to one user" is explicitly excluded, labsheet §4.2).
+enum Role {
+  REQUESTER
+  IT_STAFF
+  ADMINISTRATOR
+}
+
+// Issue 2-2 (Lab 2) — originally the "Development Requester," named `Requester` (not `DevRequester`)
+// so it could be extended in place rather than migrated to a new table (BR-40/BR-41 there).
+// Issue 3-2 (Lab 3) — renamed `Requester` -> `User` and extended with real credentials/role, exactly
+// as anticipated: same table/ids, `Ticket.requesterId` never changes (docs/lab-03/specification.md
+// §7 "Migration strategy", BR-37). `passwordHash`/`role` have no DB-level default (every insert sets
+// them explicitly — see the hand-written migration SQL for how *existing* rows were backfilled
+// one time only); `mustChangePassword` keeps its default so new rows are safe-by-default.
+// `ownerId`/`itPriority` on Ticket (and the resulting second `ticketsOwned` relation here) are
+// deliberately not part of this migration — see specification.md §11 "Migration scope": each later
+// issue (3-4 Staff Queue, 3-5 Staff Ticket Ops) adds its own incremental migration when it actually
+// needs those fields, rather than this issue carrying schema nothing yet uses.
+model User {
+  id                 Int      @id @default(autoincrement())
+  name               String
+  email              String   @unique
+  passwordHash       String
+  role               Role
+  isActive           Boolean  @default(true)
+  mustChangePassword Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   tickets Ticket[]
 }
@@ -79,7 +98,7 @@ model Ticket {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  requester     Requester     @relation(fields: [requesterId], references: [id])
+  requester     User          @relation(fields: [requesterId], references: [id])
   category      Category      @relation(fields: [categoryId], references: [id])
   relatedSystem RelatedSystem @relation(fields: [relatedSystemId], references: [id])
   attachments   Attachment[]

@@ -495,5 +495,13 @@ Every endpoint above except `POST /api/auth/login` requires a valid session (BR-
   email-delivered credentials, so there is no other in-scope delivery mechanism.
 - **Client test directory naming**: continuing the Lab 1/Lab 2 convention, Lab 3 client tests live in
   `client/tests/lab-03/` (no space), even though the labsheet prints `client/.../lab-03 tests/`.
+- **Login/Change Password UI lands in Issue 3-2, not Issue 3-3**: decided with the user during
+  implementation, after Issue 3-2's own scope note said the password-change gate is enforced
+  "server-side... not just a UI redirect" — that phrasing presupposes a redirect/UI already exists.
+  The labsheet's own §8.1 groups Login and Change Password screens with the backend auth work as one
+  deliverable, rather than treating them as part of the Requester-screens migration. This keeps Issue
+  3-3 (Requester Regression) scoped purely to migrating the *existing* Lab 2 screens onto the session
+  identity and adding Public Comments/Problem-Resolved, rather than also inventing new screens
+  alongside that regression-risk work. GitHub Issue #32's description was updated to reflect this.
 - **Ticket Number scheme, ownership-failure status codes, and other Lab 2 decisions**
   (`docs/lab-02/specification.md` §11) carry forward unchanged.

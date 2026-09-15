@@ -8,6 +8,15 @@ import { getPrisma } from "./prisma.js";
 import { formatTicketNumber } from "./ticketNumber.js";
 import { clampPage, clampPageSize } from "./ticketQuery.js";
 import { UPLOAD_DIR, MAX_ACTIVE_ATTACHMENTS, upload } from "./upload.js";
+import {
+  createSessionMiddleware,
+  hashPassword,
+  verifyPassword,
+  requireAuth,
+  toSafeUser,
+  MIN_PASSWORD_LENGTH,
+  SESSION_COOKIE_NAME,
+} from "./auth.js";
 
 // The Express app is exported separately from app.listen() (see index.ts) so
 // Supertest can import `app` without opening a port. Do not merge these files.
@@ -15,6 +24,122 @@ export const app = express();
 
 app.use(cors());          // already wired: lets the Vite dev server call this API
 app.use(express.json());
+app.use(createSessionMiddleware()); // Issue 3-2 (Lab 3) — BR-09.
+
+// ---------------------------------------------------------------------------
+// Issue 3-2 (Lab 3) — Authentication. api-spec.md §1.
+// A fixed dummy bcrypt hash for the "no such email" branch of login, so that branch still spends
+// roughly the same time as a real password comparison — otherwise the two failure cases (unknown
+// email vs. wrong password) would be distinguishable by response timing, undermining BR-07's
+// "identical response either way" anti-enumeration guarantee. The plaintext behind this hash is
+// never used or meant to be recovered; it exists only so bcrypt has something to compare against.
+// ---------------------------------------------------------------------------
+const DUMMY_HASH_FOR_TIMING_PARITY =
+  "$2b$10$drDQciZU3F3ZrJDimv5u3O8L1r8XzGzcKT8BVATaMJA73mJONOWN6";
+
+app.post("/api/auth/login", async (req: Request, res: Response) => {
+  const prisma = getPrisma();
+  const body = req.body ?? {};
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const password = typeof body.password === "string" ? body.password : "";
+
+  if (!email || !password) {
+    return res
+      .status(400)
+      .json({ error: { code: "VALIDATION_ERROR", message: "Email and password are required." } });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    // BR-07: run the password comparison whether or not a user was actually found, so the two
+    // "credentials didn't work" cases can't be told apart by response time either.
+    const passwordOk = await verifyPassword(password, user?.passwordHash ?? DUMMY_HASH_FOR_TIMING_PARITY);
+
+    if (!user || !passwordOk) {
+      return res
+        .status(401)
+        .json({ error: { code: "INVALID_CREDENTIALS", message: "Invalid email or password." } });
+    }
+
+    // BR-08: only reachable once the password has already been proven correct — an inactive
+    // account with a *wrong* password still gets the generic INVALID_CREDENTIALS message above.
+    if (!user.isActive) {
+      return res.status(401).json({
+        error: { code: "ACCOUNT_INACTIVE", message: "This account is inactive. Contact an administrator." },
+      });
+    }
+
+    // Session-fixation hardening: issue a fresh session id on privilege change (anonymous -> authenticated)
+    // rather than reusing whatever session id existed before login.
+    req.session.regenerate((err) => {
+      if (err) {
+        return res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Something went wrong. Please try again." } });
+      }
+      req.session.userId = user.id;
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          return res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Something went wrong. Please try again." } });
+        }
+        res.status(200).json(toSafeUser(user));
+      });
+    });
+  } catch {
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Something went wrong. Please try again." } });
+  }
+});
+
+// BR-10: always 200 and always clears the cookie, whether or not a session was present — logout is
+// idempotent and doesn't require a prior valid session (api-spec.md §1).
+app.post("/api/auth/logout", (req: Request, res: Response) => {
+  req.session.destroy(() => {
+    res.clearCookie(SESSION_COOKIE_NAME);
+    res.status(200).json({});
+  });
+});
+
+app.get("/api/auth/me", requireAuth, (req: Request, res: Response) => {
+  res.status(200).json(req.currentUser);
+});
+
+// BR-13/BR-14/BR-15: deliberately NOT gated by requirePasswordChanged — this is one of the three
+// endpoints that must stay reachable while mustChangePassword is true (the other two are
+// GET /api/auth/me above and POST /api/auth/logout above).
+app.post("/api/auth/change-password", requireAuth, async (req: Request, res: Response) => {
+  const body = req.body ?? {};
+  const newPassword = typeof body.newPassword === "string" ? body.newPassword : "";
+  const confirmPassword = typeof body.confirmPassword === "string" ? body.confirmPassword : "";
+
+  if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    return res.status(400).json({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+        fields: { newPassword: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` },
+      },
+    });
+  }
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Passwords do not match.",
+        fields: { confirmPassword: "Passwords do not match." },
+      },
+    });
+  }
+
+  try {
+    const passwordHash = await hashPassword(newPassword);
+    const updated = await getPrisma().user.update({
+      where: { id: req.currentUser!.id },
+      data: { passwordHash, mustChangePassword: false },
+    });
+    res.status(200).json(toSafeUser(updated));
+  } catch {
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Something went wrong. Please try again." } });
+  }
+});
 
 // Issue 2-7 (Lab 2) — shared shape for one Attachment across GET /api/tickets/:id,
 // GET/POST .../attachments, and DELETE /api/attachments/:id (BR-32: removed ones keep their
@@ -107,11 +232,15 @@ app.get("/api/related-systems", async (_req: Request, res: Response) => {
 // Issue 2-3 (Lab 2) — active Development Requesters, for the Selection screen.
 // api-spec.md §1: only isActive=true rows, ordered by id. Inactive Requesters
 // (BR-35) are never included.
+// Issue 3-2 (Lab 3) — `Requester` became `User` (still shared with IT Staff/Administrator rows), so
+// `role: "REQUESTER"` is now required here too — otherwise this endpoint (still used by the
+// not-yet-removed Dev Selector until Issue 3-3) would start listing every role. Mechanical fix
+// following from the schema change, not new Lab 3 business logic.
 // ---------------------------------------------------------------------------
 app.get("/api/requesters", async (_req: Request, res: Response) => {
   try {
-    const requesters = await getPrisma().requester.findMany({
-      where: { isActive: true },
+    const requesters = await getPrisma().user.findMany({
+      where: { isActive: true, role: "REQUESTER" },
       orderBy: { id: "asc" },
       select: { id: true, name: true, email: true },
     });
@@ -314,8 +443,12 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
   try {
     // Pass 2 — existence/active checks (BR-21). requesterId gets its own error code
     // (INVALID_REQUESTER) per api-spec.md; category/relatedSystem stay VALIDATION_ERROR.
-    const requester = await prisma.requester.findUnique({ where: { id: requesterId } });
-    if (!requester || !requester.isActive) {
+    // Issue 3-2 (Lab 3) — `role: "REQUESTER"` added: the shared `User` table can now also contain
+    // IT Staff/Administrator ids, which must never be accepted as a Ticket's requesterId even via a
+    // forged request body. Mechanical tightening following from the schema change; Issue 3-3 removes
+    // client-supplied requesterId entirely in favor of the authenticated session (BR-03/BR-17).
+    const requester = await prisma.user.findUnique({ where: { id: requesterId } });
+    if (!requester || !requester.isActive || requester.role !== "REQUESTER") {
       return res
         .status(400)
         .json({ error: { code: "INVALID_REQUESTER", message: "Selected requester is not valid." } });

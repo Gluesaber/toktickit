@@ -34,11 +34,17 @@ beforeAll(async () => {
   const prisma = getPrisma();
   const unique = Date.now();
 
+  // Issue 3-2 (Lab 3) — `Requester` is now `User`, with required `passwordHash`/`role`; see
+  // attachments.api.test.ts's fixture for why the hash is a placeholder here.
   const [requesterA, requesterB, requesterEmpty] = await Promise.all([
-    prisma.requester.create({ data: { name: "My Tickets Test A", email: `my-tickets-a-${unique}@example.test` } }),
-    prisma.requester.create({ data: { name: "My Tickets Test B", email: `my-tickets-b-${unique}@example.test` } }),
-    prisma.requester.create({
-      data: { name: "My Tickets Test Empty", email: `my-tickets-empty-${unique}@example.test` },
+    prisma.user.create({
+      data: { name: "My Tickets Test A", email: `my-tickets-a-${unique}@example.test`, role: "REQUESTER", passwordHash: "unused-in-lab2-fixture" },
+    }),
+    prisma.user.create({
+      data: { name: "My Tickets Test B", email: `my-tickets-b-${unique}@example.test`, role: "REQUESTER", passwordHash: "unused-in-lab2-fixture" },
+    }),
+    prisma.user.create({
+      data: { name: "My Tickets Test Empty", email: `my-tickets-empty-${unique}@example.test`, role: "REQUESTER", passwordHash: "unused-in-lab2-fixture" },
     }),
   ]);
   requesterAId = requesterA.id;
@@ -69,7 +75,7 @@ beforeAll(async () => {
   // active long enough for POST /api/tickets to accept them (BR-21). Deactivating afterward keeps
   // them out of GET /api/requesters — their tickets stay fully queryable regardless (BR-36) — so
   // this file doesn't permanently pollute the active-Requester list other tests/screens see.
-  await prisma.requester.updateMany({
+  await prisma.user.updateMany({
     where: { id: { in: [requesterAId, requesterBId, requesterEmptyId] } },
     data: { isActive: false },
   });

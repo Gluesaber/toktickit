@@ -16,6 +16,19 @@ export interface Requester {
   email: string;
 }
 
+// Issue 3-2 (Lab 3) — the authenticated identity (specification.md §7, api-spec.md §1). Never
+// includes passwordHash — the backend never sends it (BR-06/BR-16).
+export type Role = "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: Role;
+  isActive: boolean;
+  mustChangePassword: boolean;
+}
+
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
 export interface Ticket {
@@ -237,4 +250,47 @@ export async function removeAttachment(
 export function getAttachmentDownloadUrl(attachmentId: number, requesterId: number): string {
   const params = new URLSearchParams({ requesterId: String(requesterId) });
   return `${API_URL}/api/attachments/${attachmentId}/download?${params.toString()}`;
+}
+
+// ---------------------------------------------------------------------------
+// Issue 3-2 (Lab 3) — Authentication. api-spec.md §1.
+// `credentials: "include"` on every one of these: the session cookie (BR-09) needs to ride along
+// even though vite.config.ts's dev proxy already makes this same-origin in practice — explicit here
+// so these calls stay correct if API_URL is ever pointed at a different origin.
+// ---------------------------------------------------------------------------
+
+export async function login(email: string, password: string): Promise<User> {
+  const res = await fetch(`${API_URL}/api/auth/login`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function logout(): Promise<void> {
+  const res = await fetch(`${API_URL}/api/auth/logout`, { method: "POST", credentials: "include" });
+  if (!res.ok) return parseErrorAndThrow(res);
+}
+
+// Returns null for an unauthenticated caller (401) rather than throwing — callers use this to
+// restore/check session state on load, where "not logged in" is an expected outcome, not a failure.
+export async function getMe(): Promise<User | null> {
+  const res = await fetch(`${API_URL}/api/auth/me`, { credentials: "include" });
+  if (res.status === 401) return null;
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function changePassword(newPassword: string, confirmPassword: string): Promise<User> {
+  const res = await fetch(`${API_URL}/api/auth/change-password`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ newPassword, confirmPassword }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
 }

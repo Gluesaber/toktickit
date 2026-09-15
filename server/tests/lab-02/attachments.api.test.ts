@@ -29,9 +29,26 @@ beforeAll(async () => {
   const prisma = getPrisma();
   const unique = Date.now();
 
+  // Issue 3-2 (Lab 3) — `Requester` is now `User`, with required `passwordHash`/`role`. These
+  // fixture rows are never authenticated against in this Lab 2 file, so the hash is a placeholder,
+  // not a real bcrypt hash (avoids paying hashing's cost in every test run for no benefit here).
   const [owner, otherOwner] = await Promise.all([
-    prisma.requester.create({ data: { name: "Attachments Test Owner", email: `attachments-owner-${unique}@example.test` } }),
-    prisma.requester.create({ data: { name: "Attachments Test Other", email: `attachments-other-${unique}@example.test` } }),
+    prisma.user.create({
+      data: {
+        name: "Attachments Test Owner",
+        email: `attachments-owner-${unique}@example.test`,
+        role: "REQUESTER",
+        passwordHash: "unused-in-lab2-fixture",
+      },
+    }),
+    prisma.user.create({
+      data: {
+        name: "Attachments Test Other",
+        email: `attachments-other-${unique}@example.test`,
+        role: "REQUESTER",
+        passwordHash: "unused-in-lab2-fixture",
+      },
+    }),
   ]);
   ownerId = owner.id;
   otherOwnerId = otherOwner.id;
@@ -63,7 +80,7 @@ beforeAll(async () => {
   downloadTestTicketId = await createFixtureTicket("Fixture ticket for attachment-download tests");
   deleteTestTicketId = await createFixtureTicket("Fixture ticket for attachment-delete tests");
 
-  await prisma.requester.updateMany({
+  await prisma.user.updateMany({
     where: { id: { in: [ownerId, otherOwnerId] } },
     data: { isActive: false },
   });
