@@ -3,28 +3,33 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import MyTicketsPage from "../../src/pages/MyTicketsPage.js";
-import { RequesterProvider } from "../../src/context/RequesterContext.js";
-import App from "../../src/App.js";
+import { AuthProvider } from "../../src/context/AuthContext.js";
 import * as api from "../../src/api.js";
 import type { TicketListItem, TicketListResponse } from "../../src/api.js";
 
 const CATEGORIES = [{ id: 1, name: "Hardware" }];
 const RELATED_SYSTEMS = [{ id: 1, name: "Corporate Laptop" }];
 
-function selectRequester() {
-  window.localStorage.setItem(
-    "toktickit.selectedRequester",
-    JSON.stringify({ id: 1, name: "Alex Rivera", email: "alex.rivera@example.edu" })
-  );
-}
-
+// Issue 3-3 (Lab 3) — identity now comes from the authenticated session (BR-03/BR-17); getMe() is
+// mocked instead of seeding a selected Requester into localStorage. The former "My Tickets access
+// without a selected Requester" describe block (this file, pre-3-3) tested the now-removed
+// Development Requester Selector directly — that entire mechanism is gone (BR-39). The equivalent
+// "no session -> blocked" behavior is App.tsx's outer AuthGate now, exercised at the API level
+// (AC-10, server/tests/lab-03/*) rather than re-tested here.
 function renderPage() {
-  selectRequester();
+  vi.spyOn(api, "getMe").mockResolvedValue({
+    id: 1,
+    name: "Alex Rivera",
+    email: "alex.rivera@example.edu",
+    role: "REQUESTER",
+    isActive: true,
+    mustChangePassword: false,
+  });
   return render(
     <MemoryRouter>
-      <RequesterProvider>
+      <AuthProvider>
         <MyTicketsPage />
-      </RequesterProvider>
+      </AuthProvider>
     </MemoryRouter>
   );
 }
@@ -61,7 +66,6 @@ function makeTicket(overrides: Partial<TicketListItem> = {}): TicketListItem {
 
 describe("MyTicketsPage", () => {
   beforeEach(() => {
-    window.localStorage.clear();
     vi.spyOn(api, "getCategories").mockResolvedValue(CATEGORIES);
     vi.spyOn(api, "getRelatedSystems").mockResolvedValue(RELATED_SYSTEMS);
   });
@@ -144,7 +148,6 @@ describe("MyTicketsPage", () => {
     expect(emptyMessage.closest(".alert-info")).toBeInTheDocument();
     unmount();
 
-    window.localStorage.clear();
     const getTicketsSpy = vi.spyOn(api, "getTickets").mockResolvedValue(emptyResponse());
     const user = userEvent.setup();
     renderPage();
@@ -153,33 +156,5 @@ describe("MyTicketsPage", () => {
     await waitFor(() => expect(getTicketsSpy).toHaveBeenCalledWith(expect.objectContaining({ search: "xyz" })));
     const noResultsMessage = await screen.findByText(/no tickets match your filters/i);
     expect(noResultsMessage.closest(".alert-warning")).toBeInTheDocument();
-  });
-});
-
-// UI-14 (AC-02, BR-10) — tested against the full App: the redirect gate lives in App.tsx's Gate
-// component, not MyTicketsPage itself, since MyTicketsPage is only ever rendered once a Requester
-// is already selected.
-describe("My Tickets access without a selected Requester", () => {
-  it("shows the Development Requester Selection screen instead of My Tickets", async () => {
-    window.localStorage.clear();
-    // Issue 3-2 (Lab 3) — App.tsx now has an outer AuthGate wrapping this inner Requester gate; an
-    // authenticated session (mustChangePassword: false) is mocked here so the test reaches the same
-    // RequesterGate/DevRequesterSelector behavior it exercised pre-Lab-3, unrelated to what this
-    // test is actually about (Requester selection, not login).
-    vi.spyOn(api, "getMe").mockResolvedValue({
-      id: 1,
-      name: "Test User",
-      email: "test-user@example.test",
-      role: "REQUESTER",
-      isActive: true,
-      mustChangePassword: false,
-    });
-    vi.spyOn(api, "getRequesters").mockResolvedValue([
-      { id: 1, name: "Alex Rivera", email: "alex.rivera@example.edu" },
-    ]);
-    render(<App />);
-
-    expect(await screen.findByText(/select a development requester/i)).toBeInTheDocument();
-    expect(screen.queryByText("My Tickets")).not.toBeInTheDocument();
   });
 });

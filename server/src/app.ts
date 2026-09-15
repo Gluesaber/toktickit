@@ -13,10 +13,16 @@ import {
   hashPassword,
   verifyPassword,
   requireAuth,
+  requirePasswordChanged,
   toSafeUser,
   MIN_PASSWORD_LENGTH,
   SESSION_COOKIE_NAME,
 } from "./auth.js";
+
+// Issue 3-3 (Lab 3) — every protected route below composes both of these, in this order
+// (requirePasswordChanged reads req.currentUser, which requireAuth sets). Shortens every route
+// declaration and keeps the "which two middlewares, which order" detail in exactly one place.
+const requireFullAuth = [requireAuth, requirePasswordChanged] as const;
 
 // The Express app is exported separately from app.listen() (see index.ts) so
 // Supertest can import `app` without opening a port. Do not merge these files.
@@ -185,6 +191,26 @@ function formatAttachment(a: AttachmentRecord) {
   };
 }
 
+// Issue 3-3 (Lab 3) — shared shape for one Public Comment across GET /api/tickets/:id and
+// POST/GET /api/tickets/:id/comments (api-spec.md §4). `author`/`createdAt` are always
+// backend-assigned (BR-28) — this formatter is what guarantees the response only ever reflects
+// that, never anything the client sent.
+type CommentRecord = {
+  id: number;
+  content: string;
+  createdAt: Date;
+  author: { id: number; name: string; role: string };
+};
+
+function formatComment(c: CommentRecord) {
+  return {
+    id: c.id,
+    author: { id: c.author.id, name: c.author.name, role: c.author.role },
+    content: c.content,
+    createdAt: c.createdAt,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Issue 2 — API health check
 // Make the test in tests/lab-01/health.test.ts pass.
@@ -198,8 +224,11 @@ app.get("/api/health", (_req: Request, res: Response) => {
 // Issue 4 (Lab 1) — Category list.
 // Issue 2-4 (Lab 2) — now filters to isActive=true and uses the api-spec.md §0 error envelope
 // (specification.md §11: Category gained isActive in Issue 2-2).
+// Issue 3-3 (Lab 3) — gated behind a session (BR-11's "every endpoint except login/logout/health"
+// is a blanket rule, not limited to endpoints that carry a requesterId) — closes part of the gap
+// PR #40's review flagged (Lab 2 routes were reachable with no session at all).
 // ---------------------------------------------------------------------------
-app.get("/api/categories", async (_req: Request, res: Response) => {
+app.get("/api/categories", ...requireFullAuth, async (_req: Request, res: Response) => {
   try {
     const categories = await getPrisma().category.findMany({
       where: { isActive: true },
@@ -214,8 +243,9 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
 
 // ---------------------------------------------------------------------------
 // Issue 2-4 (Lab 2) — active Related Systems. api-spec.md §1: same rules as /api/categories.
+// Issue 3-3 (Lab 3) — gated, same reasoning as /api/categories above.
 // ---------------------------------------------------------------------------
-app.get("/api/related-systems", async (_req: Request, res: Response) => {
+app.get("/api/related-systems", ...requireFullAuth, async (_req: Request, res: Response) => {
   try {
     const relatedSystems = await getPrisma().relatedSystem.findMany({
       where: { isActive: true },
@@ -228,44 +258,26 @@ app.get("/api/related-systems", async (_req: Request, res: Response) => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// Issue 2-3 (Lab 2) — active Development Requesters, for the Selection screen.
-// api-spec.md §1: only isActive=true rows, ordered by id. Inactive Requesters
-// (BR-35) are never included.
-// Issue 3-2 (Lab 3) — `Requester` became `User` (still shared with IT Staff/Administrator rows), so
-// `role: "REQUESTER"` is now required here too — otherwise this endpoint (still used by the
-// not-yet-removed Dev Selector until Issue 3-3) would start listing every role. Mechanical fix
-// following from the schema change, not new Lab 3 business logic.
-// ---------------------------------------------------------------------------
-app.get("/api/requesters", async (_req: Request, res: Response) => {
-  try {
-    const requesters = await getPrisma().user.findMany({
-      where: { isActive: true, role: "REQUESTER" },
-      orderBy: { id: "asc" },
-      select: { id: true, name: true, email: true },
-    });
-    res.status(200).json(requesters);
-  } catch {
-    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to retrieve development requesters." } });
-  }
-});
+// Issue 2-3 (Lab 2) introduced GET /api/requesters for the Development Requester Selection screen.
+// Issue 3-3 (Lab 3) removes that screen entirely (BR-39), and nothing else ever called this
+// endpoint — deleted rather than left as dead code. Administrator's user list is a different,
+// purpose-built endpoint (GET /api/admin/users, Issue 3-6), not a revival of this one.
 
 // ---------------------------------------------------------------------------
 // Issue 2-5 (Lab 2) — the current Requester's ticket list: search/filter/sort/pagination.
 // api-spec.md §4 is the exact per-parameter contract this implements.
+// Issue 3-3 (Lab 3) — `requesterId` is no longer a query parameter at all (BR-03, BR-17): the
+// authenticated session determines whose tickets these are. A `requesterId` in the query string is
+// simply not read anymore, not validated-and-ignored — there's no code path left that looks at it.
 // ---------------------------------------------------------------------------
 const SORTABLE_FIELDS = ["createdAt", "ticketNumber", "currentStatus", "requestedPriority"] as const;
 type SortableField = (typeof SORTABLE_FIELDS)[number];
 const VALID_STATUSES: TicketStatus[] = ["NEW", "IN_PROGRESS", "RESOLVED", "CLOSED", "CANCELLED", "REOPENED"];
 
-app.get("/api/tickets", async (req: Request, res: Response) => {
+app.get("/api/tickets", ...requireFullAuth, async (req: Request, res: Response) => {
   const prisma = getPrisma();
   const q = req.query;
-
-  const requesterId = Number(q.requesterId);
-  if (!Number.isInteger(requesterId)) {
-    return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
-  }
+  const requesterId = req.currentUser!.id;
 
   // BR-18/api-spec.md §4: sortBy/sortDir/priority/status come from fixed dropdowns, so an
   // unrecognized value is a client bug worth a 400 — collected together like POST /api/tickets.
@@ -401,13 +413,19 @@ const DESCRIPTION_MIN = 10;
 const DESCRIPTION_MAX = 2000;
 const VALID_PRIORITIES: Priority[] = ["LOW", "MEDIUM", "HIGH", "URGENT"];
 
-app.post("/api/tickets", async (req: Request, res: Response) => {
+// Issue 3-3 (Lab 3) — requesterId is now the authenticated session's user id (BR-03, BR-17); any
+// requesterId present in the request body is simply never read, let alone validated — there is no
+// forging it. That also removes the old "does this requesterId reference an active Requester" check
+// entirely: requireAuth already guarantees req.currentUser is active before this handler ever runs,
+// so INVALID_REQUESTER (api-spec.md's Lab 2-era error code for that case) is no longer reachable
+// through this endpoint — see docs/lab-03/api-spec.md for the corresponding doc update.
+app.post("/api/tickets", ...requireFullAuth, async (req: Request, res: Response) => {
   const prisma = getPrisma();
   const body = req.body ?? {};
+  const requesterId = req.currentUser!.id;
 
   // BR-06: ticketNumber/currentStatus/createdAt are never read from the body even if present —
   // only the fields below are ever consulted.
-  const requesterId = Number(body.requesterId);
   const categoryId = Number(body.categoryId);
   const relatedSystemId = Number(body.relatedSystemId);
   const summary = typeof body.summary === "string" ? body.summary.trim() : "";
@@ -417,7 +435,6 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
   // Pass 1 — shape/presence validation (BR-19, BR-20, BR-21). Every problem is collected so the
   // client can show all field messages from one response, not one-at-a-time.
   const fields: Record<string, string> = {};
-  if (!Number.isInteger(requesterId)) fields.requesterId = "requesterId is required.";
   if (!Number.isInteger(categoryId)) fields.categoryId = "Please select a category.";
   if (!Number.isInteger(relatedSystemId)) fields.relatedSystemId = "Please select a related system.";
   if (!summary) {
@@ -441,19 +458,8 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
   }
 
   try {
-    // Pass 2 — existence/active checks (BR-21). requesterId gets its own error code
-    // (INVALID_REQUESTER) per api-spec.md; category/relatedSystem stay VALIDATION_ERROR.
-    // Issue 3-2 (Lab 3) — `role: "REQUESTER"` added: the shared `User` table can now also contain
-    // IT Staff/Administrator ids, which must never be accepted as a Ticket's requesterId even via a
-    // forged request body. Mechanical tightening following from the schema change; Issue 3-3 removes
-    // client-supplied requesterId entirely in favor of the authenticated session (BR-03/BR-17).
-    const requester = await prisma.user.findUnique({ where: { id: requesterId } });
-    if (!requester || !requester.isActive || requester.role !== "REQUESTER") {
-      return res
-        .status(400)
-        .json({ error: { code: "INVALID_REQUESTER", message: "Selected requester is not valid." } });
-    }
-
+    // Pass 2 — existence/active checks (BR-21) for category/relatedSystem only now — the
+    // equivalent requester check is gone, see this route's top-of-file comment.
     const [category, relatedSystem] = await Promise.all([
       prisma.category.findUnique({ where: { id: categoryId } }),
       prisma.relatedSystem.findUnique({ where: { id: relatedSystemId } }),
@@ -504,12 +510,9 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
 // putting both `id` and `requesterId` in the same `findFirst` `where` clause, rather than
 // checking existence and ownership as two separate queries with two separate failure paths.
 // ---------------------------------------------------------------------------
-app.get("/api/tickets/:id", async (req: Request, res: Response) => {
+app.get("/api/tickets/:id", ...requireFullAuth, async (req: Request, res: Response) => {
   const prisma = getPrisma();
-  const requesterId = Number(req.query.requesterId);
-  if (!Number.isInteger(requesterId)) {
-    return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
-  }
+  const requesterId = req.currentUser!.id;
 
   const ticketId = parseRouteId(req.params.id);
   if (ticketId === null) {
@@ -517,6 +520,10 @@ app.get("/api/tickets/:id", async (req: Request, res: Response) => {
   }
 
   try {
+    // Issue 3-3 (Lab 3) — `comments` added per api-spec.md §2 (Public Comments, oldest first).
+    // `ownerId`/`itPriority` are NOT part of this response yet — those fields don't exist until
+    // Issue 3-4's migration; api-spec.md's documented shape describes the cumulative end state,
+    // not what's true after any one issue (same pattern as Issue 3-2's schema-scope decision).
     const ticket = await prisma.ticket.findFirst({
       where: { id: ticketId, requesterId },
       include: {
@@ -524,6 +531,10 @@ app.get("/api/tickets/:id", async (req: Request, res: Response) => {
         category: { select: { id: true, name: true } },
         relatedSystem: { select: { id: true, name: true } },
         attachments: { orderBy: { uploadedAt: "asc" } },
+        comments: {
+          orderBy: { createdAt: "asc" },
+          include: { author: { select: { id: true, name: true, role: true } } },
+        },
       },
     });
 
@@ -533,10 +544,11 @@ app.get("/api/tickets/:id", async (req: Request, res: Response) => {
 
     // api-spec.md's shape nests requester/category/relatedSystem as objects and doesn't repeat
     // the raw foreign-key columns alongside them, so those are left out here.
-    const { attachments, requesterId: _requesterId, categoryId: _categoryId, relatedSystemId: _relatedSystemId, ...rest } = ticket;
+    const { attachments, comments, requesterId: _requesterId, categoryId: _categoryId, relatedSystemId: _relatedSystemId, ...rest } = ticket;
     res.status(200).json({
       ...rest,
       attachments: attachments.map(formatAttachment),
+      comments: comments.map(formatComment),
     });
   } catch {
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to retrieve the ticket." } });
@@ -550,7 +562,7 @@ app.get("/api/tickets/:id", async (req: Request, res: Response) => {
 // here alongside the rest of this route's validation, in the same style as every other route in
 // this file.
 // ---------------------------------------------------------------------------
-app.post("/api/tickets/:id/attachments", (req: Request, res: Response) => {
+app.post("/api/tickets/:id/attachments", ...requireFullAuth, (req: Request, res: Response) => {
   upload.single("file")(req, res, async (err: unknown) => {
     const cleanupOrphanedFile = async () => {
       if (req.file) await fs.unlink(req.file.path).catch(() => {});
@@ -572,15 +584,11 @@ app.post("/api/tickets/:id/attachments", (req: Request, res: Response) => {
     }
 
     const prisma = getPrisma();
-    const requesterId = Number(req.body.requesterId);
+    const requesterId = req.currentUser!.id;
     const ticketId = parseRouteId(req.params.id);
 
     if (!req.file) {
       return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "A file is required." } });
-    }
-    if (!Number.isInteger(requesterId)) {
-      await cleanupOrphanedFile();
-      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
     }
     if (ticketId === null) {
       await cleanupOrphanedFile();
@@ -636,12 +644,9 @@ app.post("/api/tickets/:id/attachments", (req: Request, res: Response) => {
 // Issue 2-7 (Lab 2) — Attachment metadata for a Ticket (active and removed both included, per
 // BR-32). api-spec.md "GET /api/tickets/:id/attachments".
 // ---------------------------------------------------------------------------
-app.get("/api/tickets/:id/attachments", async (req: Request, res: Response) => {
+app.get("/api/tickets/:id/attachments", ...requireFullAuth, async (req: Request, res: Response) => {
   const prisma = getPrisma();
-  const requesterId = Number(req.query.requesterId);
-  if (!Number.isInteger(requesterId)) {
-    return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
-  }
+  const requesterId = req.currentUser!.id;
   const ticketId = parseRouteId(req.params.id);
   if (ticketId === null) {
     return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
@@ -668,12 +673,9 @@ app.get("/api/tickets/:id/attachments", async (req: Request, res: Response) => {
 // 410 Gone instead, since the Requester already knows it exists (its metadata is visible in
 // Ticket Detail per BR-32) — no existence-leak risk there.
 // ---------------------------------------------------------------------------
-app.get("/api/attachments/:id/download", async (req: Request, res: Response) => {
+app.get("/api/attachments/:id/download", ...requireFullAuth, async (req: Request, res: Response) => {
   const prisma = getPrisma();
-  const requesterId = Number(req.query.requesterId);
-  if (!Number.isInteger(requesterId)) {
-    return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
-  }
+  const requesterId = req.currentUser!.id;
   const attachmentId = parseRouteId(req.params.id);
   if (attachmentId === null) {
     return res.status(404).json({ error: { code: "NOT_FOUND", message: "Attachment not found." } });
@@ -719,12 +721,9 @@ app.get("/api/attachments/:id/download", async (req: Request, res: Response) => 
 // /api/attachments/:id". Never a hard delete (BR-31); `reason` is optional (BR-31 allows but
 // doesn't require it).
 // ---------------------------------------------------------------------------
-app.delete("/api/attachments/:id", async (req: Request, res: Response) => {
+app.delete("/api/attachments/:id", ...requireFullAuth, async (req: Request, res: Response) => {
   const prisma = getPrisma();
-  const requesterId = Number(req.body.requesterId);
-  if (!Number.isInteger(requesterId)) {
-    return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "requesterId is required." } });
-  }
+  const requesterId = req.currentUser!.id;
   const attachmentId = parseRouteId(req.params.id);
   const reason = typeof req.body.reason === "string" && req.body.reason.trim() ? req.body.reason.trim() : null;
   if (attachmentId === null) {
@@ -752,6 +751,118 @@ app.delete("/api/attachments/:id", async (req: Request, res: Response) => {
     res.status(200).json(formatAttachment(updated));
   } catch {
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to remove the attachment." } });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Issue 3-3 (Lab 3) — Public Comments. api-spec.md §4. Requester-only-on-own-ticket for now: the
+// ownership check below (`id, requesterId` in one `findFirst`) is the same identical-404 pattern as
+// every other Requester-scoped route in this file. Issue 3-5 extends this *same* route with an
+// IT Staff/Administrator branch (any ticket, no ownership check) once the Staff Ticket Detail
+// screen that needs it exists — see specification.md §11 and schema.prisma's Comment model comment.
+// ---------------------------------------------------------------------------
+const COMMENT_CONTENT_MAX = 2000;
+
+app.post("/api/tickets/:id/comments", ...requireFullAuth, async (req: Request, res: Response) => {
+  const prisma = getPrisma();
+  const requesterId = req.currentUser!.id;
+  const ticketId = parseRouteId(req.params.id);
+  const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+
+  if (ticketId === null) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+  }
+  // BR-26: empty/whitespace-only rejected; author/createdAt are never read from the body (BR-28) —
+  // this handler doesn't even look for them.
+  if (!content || content.length > COMMENT_CONTENT_MAX) {
+    return res.status(400).json({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: `Comment must be 1-${COMMENT_CONTENT_MAX} characters.`,
+        fields: { content: `Comment must be 1-${COMMENT_CONTENT_MAX} characters.` },
+      },
+    });
+  }
+
+  try {
+    const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, requesterId } });
+    if (!ticket) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+    }
+
+    const comment = await prisma.comment.create({
+      data: { ticketId, authorId: requesterId, content },
+      include: { author: { select: { id: true, name: true, role: true } } },
+    });
+
+    res.status(201).json(formatComment(comment));
+  } catch {
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to post the comment." } });
+  }
+});
+
+app.get("/api/tickets/:id/comments", ...requireFullAuth, async (req: Request, res: Response) => {
+  const prisma = getPrisma();
+  const requesterId = req.currentUser!.id;
+  const ticketId = parseRouteId(req.params.id);
+  if (ticketId === null) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+  }
+
+  try {
+    const ticket = await prisma.ticket.findFirst({
+      where: { id: ticketId, requesterId },
+      include: {
+        comments: {
+          orderBy: { createdAt: "asc" },
+          include: { author: { select: { id: true, name: true, role: true } } },
+        },
+      },
+    });
+    if (!ticket) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+    }
+    res.status(200).json(ticket.comments.map(formatComment));
+  } catch {
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to retrieve comments." } });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Issue 3-3 (Lab 3) — "Problem Appears Resolved" (BR-25). Purely informational: never touches
+// currentStatus. The TICKET_ALREADY_TERMINAL branch below can't actually be reached through the
+// live app yet in this issue — every Ticket stays NEW until Issue 3-5 introduces the
+// status-transition endpoint — but BR-25 is still enforced now so it doesn't silently regress once
+// 3-5 lands (server/tests/lab-03/requester-regression.api.test.ts forces the status directly via
+// Prisma in its test setup to exercise this branch ahead of that).
+// ---------------------------------------------------------------------------
+app.patch("/api/tickets/:id/resolved-indication", ...requireFullAuth, async (req: Request, res: Response) => {
+  const prisma = getPrisma();
+  const requesterId = req.currentUser!.id;
+  const ticketId = parseRouteId(req.params.id);
+  if (ticketId === null) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+  }
+
+  try {
+    const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, requesterId } });
+    if (!ticket) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+    }
+    if (["RESOLVED", "CLOSED", "CANCELLED"].includes(ticket.currentStatus)) {
+      return res.status(409).json({
+        error: { code: "TICKET_ALREADY_TERMINAL", message: "This ticket has already been resolved, closed, or cancelled." },
+      });
+    }
+
+    const updated = await prisma.ticket.update({
+      where: { id: ticketId },
+      data: { requesterConfirmedResolvedAt: new Date() },
+    });
+
+    res.status(200).json({ id: updated.id, requesterConfirmedResolvedAt: updated.requesterConfirmedResolvedAt });
+  } catch {
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to update the ticket." } });
   }
 });
 

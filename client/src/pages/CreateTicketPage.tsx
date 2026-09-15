@@ -10,7 +10,7 @@ import {
   getRelatedSystems,
   uploadAttachment,
 } from "../api.js";
-import { useRequester } from "../context/RequesterContext.js";
+import { useAuth } from "../context/AuthContext.js";
 import { validateAttachmentFile } from "../attachmentValidation.js";
 
 // Issue 2-4 (Lab 2) — Create Ticket screen. docs/lab-02/ui-spec.md §4, docs/lab-02/specification.md
@@ -79,7 +79,7 @@ function formatSize(bytes: number): string {
 }
 
 export default function CreateTicketPage() {
-  const { requester } = useRequester();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [refDataState, setRefDataState] = useState<RefDataState>("loading");
@@ -137,10 +137,10 @@ export default function CreateTicketPage() {
     setStagedFiles((prev) => prev.filter((f) => f.id !== id));
   }
 
-  async function uploadOneStagedFile(staged: StagedFile, ticketId: number, requesterId: number) {
+  async function uploadOneStagedFile(staged: StagedFile, ticketId: number) {
     setStagedFiles((prev) => prev.map((f) => (f.id === staged.id ? { ...f, status: "uploading" } : f)));
     try {
-      await uploadAttachment(ticketId, requesterId, staged.file);
+      await uploadAttachment(ticketId, staged.file);
       setStagedFiles((prev) => prev.map((f) => (f.id === staged.id ? { ...f, status: "uploaded" } : f)));
     } catch (err) {
       setStagedFiles((prev) =>
@@ -154,13 +154,12 @@ export default function CreateTicketPage() {
   }
 
   function retryStagedFile(staged: StagedFile) {
-    if (!createdTicketId || !requester) return;
-    uploadOneStagedFile(staged, createdTicketId, requester.id);
+    if (!createdTicketId) return;
+    uploadOneStagedFile(staged, createdTicketId);
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!requester) return;
 
     const errors = validate(values);
     setFieldErrors(errors);
@@ -172,7 +171,6 @@ export default function CreateTicketPage() {
     setSubmitError(null);
     try {
       const ticket = await createTicket({
-        requesterId: requester.id,
         categoryId: Number(values.categoryId),
         relatedSystemId: Number(values.relatedSystemId),
         requestedPriority: values.requestedPriority as Priority,
@@ -187,7 +185,7 @@ export default function CreateTicketPage() {
       // only affects that one attachment row, never the Ticket itself (BR-26, BR-34). Uploads run
       // sequentially so the 5-active-attachment count each one checks stays accurate.
       for (const staged of stagedFiles) {
-        await uploadOneStagedFile(staged, ticket.id, requester.id);
+        await uploadOneStagedFile(staged, ticket.id);
       }
     } catch (err) {
       // BR-24/BR-25: field values are left exactly as typed — `values` state is untouched here.
@@ -349,7 +347,7 @@ export default function CreateTicketPage() {
             <input
               type="text"
               className="form-control"
-              value={requester?.name ?? ""}
+              value={user?.name ?? ""}
               readOnly
               disabled
               style={{ backgroundColor: "var(--zg-field-readonly-bg)", color: "var(--zg-field-readonly-text)" }}

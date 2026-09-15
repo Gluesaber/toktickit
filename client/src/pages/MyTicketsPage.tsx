@@ -10,7 +10,6 @@ import {
   getRelatedSystems,
   getTickets,
 } from "../api.js";
-import { useRequester } from "../context/RequesterContext.js";
 import { PriorityBadge, StatusBadge } from "../components/Badges.js";
 
 // Issue 2-5 (Lab 2) — My Tickets: search/filter/sort/pagination over the current Requester's
@@ -32,8 +31,6 @@ function formatDate(iso: string): string {
 }
 
 export default function MyTicketsPage() {
-  const { requester } = useRequester();
-
   const [refDataState, setRefDataState] = useState<RefDataState>("loading");
   const [categories, setCategories] = useState<Category[]>([]);
   const [relatedSystems, setRelatedSystems] = useState<RelatedSystem[]>([]);
@@ -86,11 +83,9 @@ export default function MyTicketsPage() {
   }, []);
 
   async function loadTickets() {
-    if (!requester) return;
     setListState("loading");
     try {
       const result = await getTickets({
-        requesterId: requester.id,
         search: debouncedSearch || undefined,
         categoryId: categoryFilter ? Number(categoryFilter) : undefined,
         relatedSystemId: relatedSystemFilter ? Number(relatedSystemFilter) : undefined,
@@ -115,7 +110,7 @@ export default function MyTicketsPage() {
   useEffect(() => {
     loadTickets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requester?.id, debouncedSearch, categoryFilter, relatedSystemFilter, priorityFilter, statusFilter, sortBy, sortDir, page, pageSize]);
+  }, [debouncedSearch, categoryFilter, relatedSystemFilter, priorityFilter, statusFilter, sortBy, sortDir, page, pageSize]);
 
   const hasActiveFilters = Boolean(
     debouncedSearch || categoryFilter || relatedSystemFilter || priorityFilter || statusFilter

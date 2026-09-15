@@ -10,6 +10,8 @@ export interface RelatedSystem {
   name: string;
 }
 
+// The shape nested under TicketDetail.requester (id/name/email) — not tied to the removed
+// Development Requester Selector, which used to be this interface's only consumer.
 export interface Requester {
   id: number;
   name: string;
@@ -74,8 +76,9 @@ export interface TicketListResponse {
 export type SortField = "createdAt" | "ticketNumber" | "currentStatus" | "requestedPriority";
 export type SortDir = "asc" | "desc";
 
+// Issue 3-3 (Lab 3) — `requesterId` removed (BR-03/BR-17): the authenticated session determines
+// whose tickets these are, never a client-supplied field.
 export interface TicketListQuery {
-  requesterId: number;
   search?: string;
   categoryId?: number;
   relatedSystemId?: number;
@@ -98,6 +101,14 @@ export interface Attachment {
   active: boolean;
 }
 
+// Issue 3-3 (Lab 3) — Public Comments (api-spec.md §4).
+export interface Comment {
+  id: number;
+  author: { id: number; name: string; role: Role };
+  content: string;
+  createdAt: string;
+}
+
 export interface TicketDetail {
   id: number;
   ticketNumber: string;
@@ -108,13 +119,15 @@ export interface TicketDetail {
   description: string;
   requestedPriority: Priority;
   currentStatus: string;
+  requesterConfirmedResolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
   attachments: Attachment[];
+  comments: Comment[];
 }
 
+// Issue 3-3 (Lab 3) — `requesterId` removed, same reasoning as TicketListQuery above.
 export interface CreateTicketInput {
-  requesterId: number;
   categoryId: number;
   relatedSystemId: number;
   summary: string;
@@ -155,31 +168,25 @@ async function parseErrorAndThrow(res: Response): Promise<never> {
 }
 
 // Issue 2-4 (Lab 2) — active Categories, for the Create Ticket classification group.
+// Issue 3-3 (Lab 3) — now session-gated (BR-11); `credentials: "include"` added.
 export async function getCategories(): Promise<Category[]> {
-  const res = await fetch(`${API_URL}/api/categories`);
+  const res = await fetch(`${API_URL}/api/categories`, { credentials: "include" });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }
 
 // Issue 2-4 (Lab 2) — active Related Systems, for the Create Ticket classification group.
 export async function getRelatedSystems(): Promise<RelatedSystem[]> {
-  const res = await fetch(`${API_URL}/api/related-systems`);
-  if (!res.ok) return parseErrorAndThrow(res);
-  return res.json();
-}
-
-// Issue 2-3 (Lab 2) — active Development Requesters for the Selection screen (BR-07, BR-35).
-export async function getRequesters(): Promise<Requester[]> {
-  const res = await fetch(`${API_URL}/api/requesters`);
+  const res = await fetch(`${API_URL}/api/related-systems`, { credentials: "include" });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }
 
 // Issue 2-5 (Lab 2) — the current Requester's ticket list: search/filter/sort/pagination.
 // api-spec.md §4 is the exact query contract.
+// Issue 3-3 (Lab 3) — no requesterId param; identity comes from the session cookie.
 export async function getTickets(query: TicketListQuery): Promise<TicketListResponse> {
   const params = new URLSearchParams();
-  params.set("requesterId", String(query.requesterId));
   if (query.search) params.set("search", query.search);
   if (query.categoryId !== undefined) params.set("categoryId", String(query.categoryId));
   if (query.relatedSystemId !== undefined) params.set("relatedSystemId", String(query.relatedSystemId));
@@ -190,16 +197,15 @@ export async function getTickets(query: TicketListQuery): Promise<TicketListResp
   if (query.page !== undefined) params.set("page", String(query.page));
   if (query.pageSize !== undefined) params.set("pageSize", String(query.pageSize));
 
-  const res = await fetch(`${API_URL}/api/tickets?${params.toString()}`);
+  const res = await fetch(`${API_URL}/api/tickets?${params.toString()}`, { credentials: "include" });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }
 
-// Issue 2-6 (Lab 2) — one owned Ticket + its Attachments, for Ticket Detail. Nonexistent and
-// not-owned both surface as the same ApiError (code NOT_FOUND) — BR-12, BR-40, AC-21.
-export async function getTicket(id: number, requesterId: number): Promise<TicketDetail> {
-  const params = new URLSearchParams({ requesterId: String(requesterId) });
-  const res = await fetch(`${API_URL}/api/tickets/${id}?${params.toString()}`);
+// Issue 2-6 (Lab 2) — one owned Ticket + its Attachments/Comments, for Ticket Detail. Nonexistent
+// and not-owned both surface as the same ApiError (code NOT_FOUND) — BR-12, BR-40, AC-21.
+export async function getTicket(id: number): Promise<TicketDetail> {
+  const res = await fetch(`${API_URL}/api/tickets/${id}`, { credentials: "include" });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }
@@ -209,6 +215,7 @@ export async function getTicket(id: number, requesterId: number): Promise<Ticket
 export async function createTicket(input: CreateTicketInput): Promise<Ticket> {
   const res = await fetch(`${API_URL}/api/tickets`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
@@ -217,12 +224,12 @@ export async function createTicket(input: CreateTicketInput): Promise<Ticket> {
 }
 
 // Issue 2-7 (Lab 2) — add an Attachment to an owned Ticket (AC-06, AC-25, BR-27–BR-30).
-export async function uploadAttachment(ticketId: number, requesterId: number, file: File): Promise<Attachment> {
+export async function uploadAttachment(ticketId: number, file: File): Promise<Attachment> {
   const formData = new FormData();
-  formData.append("requesterId", String(requesterId));
   formData.append("file", file);
   const res = await fetch(`${API_URL}/api/tickets/${ticketId}/attachments`, {
     method: "POST",
+    credentials: "include",
     body: formData,
   });
   if (!res.ok) return parseErrorAndThrow(res);
@@ -230,26 +237,53 @@ export async function uploadAttachment(ticketId: number, requesterId: number, fi
 }
 
 // Issue 2-7 (Lab 2) — soft-remove an owned, active Attachment (AC-26, BR-31).
-export async function removeAttachment(
-  attachmentId: number,
-  requesterId: number,
-  reason?: string
-): Promise<Attachment> {
+export async function removeAttachment(attachmentId: number, reason?: string): Promise<Attachment> {
   const res = await fetch(`${API_URL}/api/attachments/${attachmentId}`, {
     method: "DELETE",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ requesterId, reason }),
+    body: JSON.stringify({ reason }),
   });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }
 
 // Issue 2-7 (Lab 2) — download URL for an active Attachment (AC-22). Rendered as a plain <a href>
-// so the browser handles the download directly via the server's Content-Disposition header,
-// rather than fetching the bytes through JS.
-export function getAttachmentDownloadUrl(attachmentId: number, requesterId: number): string {
-  const params = new URLSearchParams({ requesterId: String(requesterId) });
-  return `${API_URL}/api/attachments/${attachmentId}/download?${params.toString()}`;
+// so the browser handles the download directly via the server's Content-Disposition header, rather
+// than fetching the bytes through JS — the browser's own navigation carries the session cookie
+// automatically (same-origin via vite.config.ts's dev proxy), no requesterId param needed anymore.
+export function getAttachmentDownloadUrl(attachmentId: number): string {
+  return `${API_URL}/api/attachments/${attachmentId}/download`;
+}
+
+// ---------------------------------------------------------------------------
+// Issue 3-3 (Lab 3) — Public Comments + "Problem Appears Resolved". api-spec.md §3/§4.
+// ---------------------------------------------------------------------------
+
+export async function getComments(ticketId: number): Promise<Comment[]> {
+  const res = await fetch(`${API_URL}/api/tickets/${ticketId}/comments`, { credentials: "include" });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function postComment(ticketId: number, content: string): Promise<Comment> {
+  const res = await fetch(`${API_URL}/api/tickets/${ticketId}/comments`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function markProblemResolved(ticketId: number): Promise<{ id: number; requesterConfirmedResolvedAt: string }> {
+  const res = await fetch(`${API_URL}/api/tickets/${ticketId}/resolved-indication`, {
+    method: "PATCH",
+    credentials: "include",
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
 }
 
 // ---------------------------------------------------------------------------

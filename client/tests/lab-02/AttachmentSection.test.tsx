@@ -28,18 +28,10 @@ function makeFile(name: string, type: string, sizeBytes = 1024): File {
 describe("AttachmentSection", () => {
   // UI-19 (AC-22)
   it("renders a working download link for an active attachment", () => {
-    render(
-      <AttachmentSection
-        ticketId={1}
-        requesterId={1}
-        attachments={[makeAttachment()]}
-        onRefresh={vi.fn()}
-      />
-    );
+    render(<AttachmentSection ticketId={1} attachments={[makeAttachment()]} onRefresh={vi.fn()} />);
 
     const link = screen.getByRole("link", { name: "battery-report.pdf" });
     expect(link).toHaveAttribute("href", expect.stringContaining("/api/attachments/1/download"));
-    expect(link).toHaveAttribute("href", expect.stringContaining("requesterId=1"));
   });
 
   // UI-20 (AC-25, BR-29)
@@ -47,9 +39,7 @@ describe("AttachmentSection", () => {
     const uploadSpy = vi.spyOn(api, "uploadAttachment");
     const fiveActive = Array.from({ length: 5 }, (_, i) => makeAttachment({ id: i + 1, originalFileName: `file${i}.jpg` }));
     const user = userEvent.setup({ applyAccept: false });
-    render(
-      <AttachmentSection ticketId={1} requesterId={1} attachments={fiveActive} onRefresh={vi.fn()} />
-    );
+    render(<AttachmentSection ticketId={1} attachments={fiveActive} onRefresh={vi.fn()} />);
 
     const input = screen.getByLabelText(/add attachment/i);
     await user.upload(input, makeFile("sixth.jpg", "image/jpeg"));
@@ -62,12 +52,12 @@ describe("AttachmentSection", () => {
     const uploadSpy = vi.spyOn(api, "uploadAttachment").mockResolvedValue(makeAttachment({ id: 9 }));
     const onRefresh = vi.fn().mockResolvedValue(undefined);
     const user = userEvent.setup();
-    render(<AttachmentSection ticketId={1} requesterId={1} attachments={[]} onRefresh={onRefresh} />);
+    render(<AttachmentSection ticketId={1} attachments={[]} onRefresh={onRefresh} />);
 
     const input = screen.getByLabelText(/add attachment/i);
     await user.upload(input, makeFile("photo.jpg", "image/jpeg"));
 
-    expect(uploadSpy).toHaveBeenCalledWith(1, 1, expect.objectContaining({ name: "photo.jpg" }));
+    expect(uploadSpy).toHaveBeenCalledWith(1, expect.objectContaining({ name: "photo.jpg" }));
     expect(onRefresh).toHaveBeenCalled();
   });
 });
