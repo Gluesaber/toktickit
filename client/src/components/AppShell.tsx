@@ -1,11 +1,17 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useRequester } from "../context/RequesterContext.js";
+import { useAuth } from "../context/AuthContext.js";
+import { RoleBadge } from "./Badges.js";
 
 // Issue 2-3 (Lab 2) — application shell: identity + nav + Change Requester. docs/lab-02/ui-spec.md §2.
 // Only rendered once a Requester is selected (see App.tsx) — BR-10.
+// Issue 3-2 (Lab 3) — FR-05/FR-06: authenticated user's name/role + Logout added alongside the
+// still-present Dev Requester chip below (accepted intermediate state, specification.md §11 — both
+// mechanisms are active simultaneously until Issue 3-3 removes the Dev Selector entirely).
 export default function AppShell() {
   const { requester, changeRequester } = useRequester();
+  const { user, logout } = useAuth();
   const [navOpen, setNavOpen] = useState(false);
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -42,14 +48,25 @@ export default function AppShell() {
             </NavLink>
           </nav>
 
-          {requester && (
-            <div className="d-flex align-items-center gap-2">
-              <span className="requester-chip">{requester.name}</span>
-              <button type="button" className="btn btn-sm btn-outline-light" onClick={changeRequester}>
-                Change Requester
-              </button>
-            </div>
-          )}
+          <div className="d-flex align-items-center gap-2 flex-wrap">
+            {user && (
+              <span className="d-flex align-items-center gap-2">
+                <span className="requester-chip">{user.name}</span>
+                <RoleBadge role={user.role} />
+                <button type="button" className="btn btn-sm btn-outline-light" onClick={() => logout()}>
+                  Logout
+                </button>
+              </span>
+            )}
+            {requester && (
+              <span className="d-flex align-items-center gap-2">
+                <span className="requester-chip">{requester.name}</span>
+                <button type="button" className="btn btn-sm btn-outline-light" onClick={changeRequester}>
+                  Change Requester
+                </button>
+              </span>
+            )}
+          </div>
         </div>
       </header>
 
