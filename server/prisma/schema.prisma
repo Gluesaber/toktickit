@@ -65,6 +65,7 @@ model User {
   tickets      Ticket[]
   ticketsOwned Ticket[] @relation("TicketOwner")
   comments     Comment[]
+  notes        Note[]
 }
 
 // Only `NEW` is ever written or read through Lab 2 (BR-02); the remaining values were reserved so
@@ -126,6 +127,7 @@ model Ticket {
   relatedSystem RelatedSystem @relation(fields: [relatedSystemId], references: [id])
   attachments   Attachment[]
   comments      Comment[]
+  notes         Note[]
 
   @@index([requesterId])
   @@index([ownerId])
@@ -136,12 +138,30 @@ model Ticket {
 }
 
 // Issue 3-3 (Lab 3) — Public Comments (BR-04, BR-26–BR-28). Append-only in Lab 3: no `updatedAt`, no
-// edit/delete route. Requester-only access for now (own ticket only) — Issue 3-5 extends the same
-// `POST/GET /api/tickets/:id/comments` route with an IT Staff/Administrator branch (any ticket) once
-// the Staff Ticket Detail screen that needs it exists; kept as its own model (not shared with a
-// future `Note` model behind a `visibility` flag) so a query bug can never leak one into the other —
-// see api-spec.md §4 / specification.md §11.
+// edit/delete route. Requester-only access at first (own ticket only) — Issue 3-5 extends the same
+// `POST/GET /api/tickets/:id/comments` route with an IT Staff/Administrator branch (any ticket) now
+// that the Staff Ticket Detail screen needing it exists; kept as its own model (not shared with
+// `Note` below behind a `visibility` flag) so a query bug can never leak one into the other — see
+// api-spec.md §4 / specification.md §11.
 model Comment {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId])
+}
+
+// Issue 3-5 (Lab 3) — Internal Notes (BR-04, BR-26–BR-28, AC-04). Same shape as `Comment` and the
+// same append-only rules, but a fully separate model/table rather than a `visibility` flag on
+// `Comment` — an authorization bug in one query path can't accidentally expose Note content through
+// the Public Comments endpoint (specification.md §11). IT Staff/Administrator only, on any ticket;
+// a Requester is rejected 403 before any Note row is ever read (BR-29).
+model Note {
   id        Int      @id @default(autoincrement())
   ticketId  Int
   authorId  Int

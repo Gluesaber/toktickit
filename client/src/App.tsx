@@ -7,6 +7,7 @@ import MyTicketsPage from "./pages/MyTicketsPage.js";
 import CreateTicketPage from "./pages/CreateTicketPage.js";
 import TicketDetailPage from "./pages/TicketDetailPage.js";
 import StaffTicketQueuePage from "./pages/StaffTicketQueuePage.js";
+import StaffTicketDetailPage from "./pages/StaffTicketDetailPage.js";
 
 // Issue 3-2 (Lab 3) — outer authentication gate (BR-11, BR-13, AC-10):
 //   no session          -> Login
@@ -19,6 +20,10 @@ import StaffTicketQueuePage from "./pages/StaffTicketQueuePage.js";
 // authorization matrix): Requester gets the ticket-authoring screens, IT Staff/Administrator get the
 // Queue. A route this role can't reach is never even mounted — not just visually hidden — matching
 // FR-06/"a hidden button is not authorization."
+// Issue 3-5 (Lab 3) — adds /queue/:id (Staff Ticket Detail), deliberately a separate path from the
+// Requester's /tickets/:id rather than one route branching by role internally — the two layouts
+// diverge enough (claim/reassign, IT Priority, staff status control, Internal Notes) that sharing a
+// route would mean branching most of the component body anyway.
 function AuthGate() {
   const { status, user } = useAuth();
 
@@ -41,6 +46,7 @@ function AuthGate() {
           <>
             <Route path="/" element={<Navigate to="/queue" replace />} />
             <Route path="/queue" element={<StaffTicketQueuePage />} />
+            <Route path="/queue/:id" element={<StaffTicketDetailPage />} />
             <Route path="*" element={<Navigate to="/queue" replace />} />
           </>
         ) : (

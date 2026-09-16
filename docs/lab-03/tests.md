@@ -49,8 +49,8 @@ Six levels, per the labsheet's minimum coverage requirement: **Unit**, **API**, 
 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UNIT-03 | BR-22, BR-23, BR-24, §5.2 | Transition-matrix pure function, every listed (from, to, role) triple | Each returns allowed | Pending |
-| UNIT-04 | §5.2 | Every pair not listed in the matrix | Returns not-allowed, including any pair out of Cancelled (terminal); Closed → Reopened is a listed, allowed pair, not a not-allowed case | Pending |
+| UNIT-03 | BR-22, BR-23, BR-24, §5.2 | Transition-matrix pure function, every listed (from, to, role) triple | Each returns allowed | Pass |
+| UNIT-04 | §5.2 | Every pair not listed in the matrix | Returns not-allowed, including any pair out of Cancelled (terminal); Closed → Reopened is a listed, allowed pair, not a not-allowed case | Pass |
 
 ### API — `server/tests/lab-03/auth.api.test.ts`
 
@@ -121,22 +121,33 @@ below).
 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| API-34 | AC-20, BR-19, BR-20 | `PATCH .../owner`, claim an unassigned ticket | `200`, `ownerId` set to the caller | Pending |
-| API-35 | AC-21 | `PATCH .../owner`, reassign an owned ticket to a different active IT Staff member | `200`, `ownerId` updates | Pending |
-| API-36 | BR-19 | `PATCH .../owner` with a Requester id or an inactive user id | `400 INVALID_OWNER` | Pending |
-| API-37 | AC-23, BR-21, BR-22 | `PATCH .../priority` | `200`, `itPriority` updates, `requestedPriority` unchanged | Pending |
-| API-38 | AC-22, BR-23 | `PATCH .../status`, New → Resolved directly | `409 TRANSITION_NOT_PERMITTED` | Pending |
-| API-39 | §5.2 | `PATCH .../status` through every permitted matrix transition | Each succeeds `200` | Pending |
-| API-40 | — | `GET /api/staff/tickets/:id` | Returns `notes[]` and the full `requester` object | Pending |
+| API-34 | AC-20, BR-19, BR-20 | `PATCH .../owner`, claim an unassigned ticket | `200`, `ownerId` set to the caller | Pass |
+| API-35 | AC-21 | `PATCH .../owner`, reassign an owned ticket to a different active IT Staff member | `200`, `ownerId` updates | Pass |
+| API-36 | BR-19 | `PATCH .../owner` with a Requester id or an inactive user id | `400 INVALID_OWNER` | Pass |
+| API-37 | AC-23, BR-21, BR-22 | `PATCH .../priority` | `200`, `itPriority` updates, `requestedPriority` unchanged | Pass |
+| API-38 | AC-22, BR-23 | `PATCH .../status`, New → Resolved directly | `409 TRANSITION_NOT_PERMITTED` | Pass |
+| API-39 | §5.2 | `PATCH .../status` through every permitted matrix transition | Each succeeds `200` | Pass |
+| API-40 | — | `GET /api/staff/tickets/:id` | Returns `notes[]` and the full `requester` object | Pass |
 
 ### API — `server/tests/lab-03/comments-notes.api.test.ts`
 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| API-41 | AC-24, BR-04 | `POST .../notes` by IT Staff | `201`; visible on the staff `GET`, absent from `GET /api/tickets/:id` | Pending |
-| API-42 | BR-26 | `POST .../notes` with blank content | `400 VALIDATION_ERROR` | Pending |
-| API-43 | BR-27 | Attempt to edit/delete an existing Comment or Note | No such route exists (`404`) — confirms append-only | Pending |
-| API-44 | BR-04 | `GET .../comments` as IT Staff on a ticket they don't own | `200`, full list (IT Staff isn't ownership-restricted) | Pending |
+| API-41 | AC-24, BR-04 | `POST .../notes` by IT Staff | `201`; visible on the staff `GET`, absent from `GET /api/tickets/:id` | Pass |
+| API-42 | BR-26 | `POST .../notes` with blank content | `400 VALIDATION_ERROR` | Pass |
+| API-43 | BR-27 | Attempt to edit/delete an existing Comment or Note | No such route exists (`404`) — confirms append-only | Pass |
+| API-44 | BR-04 | `GET .../comments` as IT Staff on a ticket they don't own | `200`, full list (IT Staff isn't ownership-restricted) | Pass |
+
+### API — `server/tests/lab-03/requester-regression.api.test.ts` *(additional rows, Issue 3-5)*
+
+Restores the "Planned" total §6 noted would happen once Issue 3-5 defined its own IDs for the
+Requester side of the transition matrix, in place of the retired API-25/26/27 (§2's Cancel-scope
+note).
+
+| Test ID | AC/BR | What It Tests | Expected Result | Final |
+|---|---|---|---|---|
+| API-56 | AC-25, BR-24 | Requester `PATCH /api/tickets/:id/status` with `CANCELLED` from New or Open, own ticket | `200`, `currentStatus: CANCELLED` | Pass |
+| API-57 | BR-24 | Requester attempts Cancel past New/Open, a non-Cancel target, or on a non-owned ticket | `409 TRANSITION_NOT_PERMITTED` (first two); `404` (ownership) | Pass |
 
 ### API — `server/tests/lab-03/users-admin.api.test.ts`
 
@@ -208,11 +219,11 @@ rather than `LoginPage` alone, since the nav lives in `AppShell`. Both noted dir
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-18 | AC-20 | Claim button on an unassigned ticket | Calls `PATCH .../owner`; row updates to show the caller as owner | Pending |
-| UI-19 | AC-22 | Status-change control | Only offers options valid from the current status (`ui-spec.md` §7.3) | Pending |
-| UI-20 | AC-22 | A mocked `409 TRANSITION_NOT_PERMITTED` response | Safe failure message shown, status unchanged in the UI | Pending |
-| UI-21 | — | Internal Notes card vs. Public Comments card | Rendered with visually distinct CSS classes (`ui-spec.md` §7.4) | Pending |
-| STYLE-02 | — | IT Priority editable control vs. Requested Priority read-only badge | Distinguishable classes, matching the editable/read-only rule | Pending |
+| UI-18 | AC-20 | Claim button on an unassigned ticket | Calls `PATCH .../owner`; row updates to show the caller as owner | Pass |
+| UI-19 | AC-22 | Status-change control | Only offers options valid from the current status (`ui-spec.md` §7.3) | Pass |
+| UI-20 | AC-22 | A mocked `409 TRANSITION_NOT_PERMITTED` response | Safe failure message shown, status unchanged in the UI | Pass |
+| UI-21 | — | Internal Notes card vs. Public Comments card | Rendered with visually distinct CSS classes (`ui-spec.md` §7.4) | Pass |
+| STYLE-02 | — | IT Priority editable control vs. Requested Priority read-only badge | Distinguishable classes, matching the editable/read-only rule | Pass |
 
 ### UI component — `client/tests/lab-03/UserManagement.test.tsx`
 
@@ -272,7 +283,7 @@ rather than `LoginPage` alone, since the nav lives in `AppShell`. Both noted dir
 | AC-04 | API-14, UI-13 | AC-22 | API-38, UI-19, UI-20 |
 | AC-05 | API-04, UI-01, E2E-02 | AC-23 | API-37, E2E-03 |
 | AC-06 | UI-05, E2E-01 | AC-24 | API-41, E2E-03 |
-| AC-07 | API-06, UI-07 | AC-25 | *(Issue 3-5 — see §2's Cancel-scope note)* |
+| AC-07 | API-06, UI-07 | AC-25 | API-56, API-57, E2E-07 |
 | AC-08 | API-07, UI-08 | AC-26 | API-17, E2E-04 |
 | AC-09 | API-09, E2E-01 | AC-27 | API-45, UI-22 |
 | AC-10 | API-10, E2E-01 | AC-28 | API-47, E2E-05 |
@@ -309,36 +320,45 @@ before a UI Issue is marked Done is a human look at the actual screenshots again
 ## 6. Final Results
 
 **In progress.** Updated after each landed Issue — following the same discipline `docs/lab-02/tests.md`
-§6 used — not reconstructed in one pass at the end. Current as of **Issue 3-4 (Staff Ticket Queue)**;
-every other Issue's rows remain `Pending` below until their own branch lands. A full staleness sweep
-(every `Pending`/`TODO` row reconciled against real, verified state) still happens as part of Issue 3-8,
-per the doc-finalization habit this project has already needed twice in Lab 2 — but that's a final audit,
-not the only time this table gets touched.
+§6 used — not reconstructed in one pass at the end. Current as of **Issue 3-5 (Staff Ticket
+Operations)**: migration, all `/api/staff/*` endpoints (plus `GET /api/staff/users`, the small
+unplanned addition — see api-spec.md §6), the widened Comments routes, the shared status-transition
+endpoint, the Staff Ticket Detail page, and every test row this issue plans are done and passing,
+verified both by the automated suites and a live manual walkthrough (claim, reassign, IT Priority
+edit, a confirmed and an unconfirmed status transition, an Internal Note post, round-tripped back
+through the Queue). Only the E2E rows (E2E-03/04) remain `Pending` — Playwright coverage is Issue
+3-7's job, same phased split Lab 2 used. Every other Issue's rows remain `Pending` until their own
+branch lands. A full staleness sweep (every `Pending`/`TODO` row reconciled against real, verified
+state) still happens as part of Issue 3-8, per the doc-finalization habit this project has already needed
+twice in Lab 2 — but that's a final audit, not the only time this table gets touched.
 
-The API "Planned" total drops from 100's original 55 to 52 as of Issue 3-3: API-25/26/27 (Requester
-self-Cancel) are retired from this file's plan per the Cancel-scope decision (§2) rather than carried as
-permanently `Pending` — Issue 3-5 will add its own IDs for the full transition matrix when it's planned in
-detail, which will likely restore or exceed this sprint total. UI-06 (role-scoped nav), deferred at
-Issue 3-2 for lack of a second role-scoped screen to test against, completes at this issue.
+The API "Planned" total dropped from 100's original 55 to 52 as of Issue 3-3, when API-25/26/27
+(Requester self-Cancel) were retired from this file's plan per the Cancel-scope decision (§2) rather than
+carried as permanently `Pending`. It's back up to 54 as of this issue: API-56/57 are Issue 3-5's own IDs
+for the Requester side of the transition matrix (§2's `requester-regression.api.test.ts` addendum),
+restoring rather than exceeding the original count since the staff side reused the already-planned
+API-34–44 rather than adding more. UI-06 (role-scoped nav), deferred at Issue 3-2 for lack of a second
+role-scoped screen to test against, completed at Issue 3-4.
 
 | Level | Planned (sprint total) | Actual so far | Passing | Failing | Deferred |
 |---|---|---|---|---|---|
-| Unit | 4 | 2 (UNIT-01, 02) | 2 | 0 | 0 |
-| API | 52 | 26 (API-01–33, 53–55) | 26 | 0 | 0 |
-| UI component | 27 | 17 (UI-01–17) | 17 | 0 | 0 |
-| UI style | 2 | 1 (STYLE-01) | 1 | 0 | 0 |
+| Unit | 4 | 4 (UNIT-01–04) | 4 | 0 | 0 |
+| API | 54 | 39 (API-01–11, 19–24, 28–44, 53–57) | 39 | 0 | 0 |
+| UI component | 27 | 21 (UI-01–21) | 21 | 0 | 0 |
+| UI style | 2 | 2 (STYLE-01, 02) | 2 | 0 | 0 |
 | Responsive | 5 | 0 | 0 | 0 | 0 |
 | E2E | 7 | 0 | 0 | 0 | 0 |
-| **Total** | **97** | **46** | **46** | **0** | **0** |
+| **Total** | **99** | **66** | **66** | **0** | **0** |
 
 "Actual so far" counts planned Test IDs with a real, verified implementation. The real `npm test` suites
-run more raw cases than that (115 server + 50 client `it()` blocks as of this issue, against 46 planned
+run more raw cases than that (157 server + 56 client `it()` blocks as of this issue, against 66 planned
 IDs combined) — extra edge cases like the missing-field/idempotent-logout/role-leak/parity checks don't
-map to a single planned ID each, same pattern Lab 2 saw (`docs/lab-02/tests.md` §6: actual execution count
-grew past the original per-ID estimate as real edge cases were found). Re-run repeatedly across Issues
-3-2, 3-3, and 3-4 — including after fixing three separate manual-testing data-pollution incidents (all
-caught by `API-54`) and one test-isolation bug in this issue's own `staff-queue.api.test.ts` (caught by
-its own pagination/categoryId assertions going flaky on repeated runs) — with zero flakes since; see §7.
+map to a single planned ID each, same pattern Lab 2 saw (`docs/lab-02/tests.md` §6: actual execution
+count grew past the original per-ID estimate as real edge cases were found). Re-run repeatedly across
+Issues 3-2 through 3-5 — including after fixing four separate manual-testing data-pollution incidents
+(all caught by `API-54`; this issue's run caught two accounts polluted at once,
+`alex.rivera@example.edu` and `priya.nair@example.edu`) and one test-isolation bug in Issue 3-4's own
+`staff-queue.api.test.ts` — with zero flakes since; see §7.
 
 ## 7. Known Limitations or Deferred Tests
 
@@ -381,3 +401,13 @@ and are recorded now so they aren't mistaken for gaps later:
   `Date.now()` suffix into the fixture summary itself, the same uniqueness technique already used for
   fixture email addresses throughout this project — confirmed stable across three consecutive re-runs
   after the fix.
+- **The account-pollution incident recurred a fourth time, before Issue 3-5 started — and for the first
+  time, hit two accounts at once.** Both `alex.rivera@example.edu` and `priya.nair@example.edu` were
+  found with `mustChangePassword: false` at the start of this issue's work; neither had been deliberately
+  touched by any Issue 3-4 test or verification step, so this was manual browser testing between issues
+  again. Restored the same way (disposable `tsx` script, re-hash the documented dev password, reset
+  `mustChangePassword` to `true`), then re-verified all 157 server tests clean. Given this is now the
+  fourth occurrence and the first to affect more than one account at once, the `npm run
+  reset-dev-accounts` script flagged as "worth building" after the third recurrence is now a real backlog
+  item rather than a hypothetical — not built in this issue (out of its own scope), but should not keep
+  being deferred past Issue 3-6 or 3-7.

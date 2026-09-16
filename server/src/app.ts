@@ -8,6 +8,7 @@ import { getPrisma } from "./prisma.js";
 import { formatTicketNumber } from "./ticketNumber.js";
 import { clampPage, clampPageSize } from "./ticketQuery.js";
 import { UPLOAD_DIR, MAX_ACTIVE_ATTACHMENTS, upload } from "./upload.js";
+import { canTransition, type TransitionRole } from "./statusTransitions.js";
 import {
   createSessionMiddleware,
   hashPassword,
@@ -773,17 +774,21 @@ app.delete("/api/attachments/:id", ...requireFullAuth, async (req: Request, res:
 });
 
 // ---------------------------------------------------------------------------
-// Issue 3-3 (Lab 3) — Public Comments. api-spec.md §4. Requester-only-on-own-ticket for now: the
-// ownership check below (`id, requesterId` in one `findFirst`) is the same identical-404 pattern as
-// every other Requester-scoped route in this file. Issue 3-5 extends this *same* route with an
-// IT Staff/Administrator branch (any ticket, no ownership check) once the Staff Ticket Detail
-// screen that needs it exists — see specification.md §11 and schema.prisma's Comment model comment.
+// Issue 3-3 (Lab 3) — Public Comments. api-spec.md §4. Requester-only-on-own-ticket at first.
+// Issue 3-5 (Lab 3) — extends this *same* route with an IT Staff/Administrator branch: any ticket,
+// no ownership check (specification.md §5.1) — `isStaff` below picks the `where` clause, everything
+// else (validation, the 404-on-not-visible shape, response format) is shared code, not duplicated.
 // ---------------------------------------------------------------------------
 const COMMENT_CONTENT_MAX = 2000;
 
+function ticketVisibilityWhere(ticketId: number, currentUser: { id: number; role: string }) {
+  const isStaff = currentUser.role === "IT_STAFF" || currentUser.role === "ADMINISTRATOR";
+  return isStaff ? { id: ticketId } : { id: ticketId, requesterId: currentUser.id };
+}
+
 app.post("/api/tickets/:id/comments", ...requireFullAuth, async (req: Request, res: Response) => {
   const prisma = getPrisma();
-  const requesterId = req.currentUser!.id;
+  const currentUser = req.currentUser!;
   const ticketId = parseRouteId(req.params.id);
   const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
 
@@ -803,13 +808,13 @@ app.post("/api/tickets/:id/comments", ...requireFullAuth, async (req: Request, r
   }
 
   try {
-    const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, requesterId } });
+    const ticket = await prisma.ticket.findFirst({ where: ticketVisibilityWhere(ticketId, currentUser) });
     if (!ticket) {
       return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
     }
 
     const comment = await prisma.comment.create({
-      data: { ticketId, authorId: requesterId, content },
+      data: { ticketId, authorId: currentUser.id, content },
       include: { author: { select: { id: true, name: true, role: true } } },
     });
 
@@ -821,7 +826,7 @@ app.post("/api/tickets/:id/comments", ...requireFullAuth, async (req: Request, r
 
 app.get("/api/tickets/:id/comments", ...requireFullAuth, async (req: Request, res: Response) => {
   const prisma = getPrisma();
-  const requesterId = req.currentUser!.id;
+  const currentUser = req.currentUser!;
   const ticketId = parseRouteId(req.params.id);
   if (ticketId === null) {
     return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
@@ -829,7 +834,7 @@ app.get("/api/tickets/:id/comments", ...requireFullAuth, async (req: Request, re
 
   try {
     const ticket = await prisma.ticket.findFirst({
-      where: { id: ticketId, requesterId },
+      where: ticketVisibilityWhere(ticketId, currentUser),
       include: {
         comments: {
           orderBy: { createdAt: "asc" },
@@ -881,6 +886,54 @@ app.patch("/api/tickets/:id/resolved-indication", ...requireFullAuth, async (req
     res.status(200).json({ id: updated.id, requesterConfirmedResolvedAt: updated.requesterConfirmedResolvedAt });
   } catch {
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to update the ticket." } });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Issue 3-5 (Lab 3) — Current Status changes (BR-22, BR-23, BR-24, §5.2). Shared by both roles on
+// the same route, per the Cancel-scope decision (specification.md §11): a Requester may only target
+// Cancelled from New/Open on their own ticket; IT Staff/Administrator may make any transition listed
+// in the matrix, on any ticket. `ticketVisibilityWhere` (defined above the Comments routes) is what
+// enforces "own ticket only" for a Requester here, identically to how it gates Comments visibility.
+// `canTransition` is the single source of truth for what's allowed — this handler never encodes the
+// matrix itself, so it can't drift from status-transition.unit.test.ts's coverage of the same table.
+// ---------------------------------------------------------------------------
+app.patch("/api/tickets/:id/status", ...requireFullAuth, async (req: Request, res: Response) => {
+  const prisma = getPrisma();
+  const currentUser = req.currentUser!;
+  const ticketId = parseRouteId(req.params.id);
+  const status = typeof req.body?.status === "string" ? req.body.status : "";
+
+  if (ticketId === null) {
+    return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+  }
+  if (!VALID_STATUSES.includes(status as TicketStatus)) {
+    return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid status value." } });
+  }
+
+  try {
+    const ticket = await prisma.ticket.findFirst({ where: ticketVisibilityWhere(ticketId, currentUser) });
+    if (!ticket) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+    }
+
+    // BR-23/BR-24: a Requester's illegal target and an IT Staff's illegal target return the exact
+    // same code — the caller can't tell which rule tripped.
+    if (!canTransition(ticket.currentStatus, status as TicketStatus, currentUser.role as TransitionRole)) {
+      return res.status(409).json({
+        error: { code: "TRANSITION_NOT_PERMITTED", message: "That status change isn't permitted right now." },
+      });
+    }
+
+    const updated = await prisma.ticket.update({
+      where: { id: ticketId },
+      data: { currentStatus: status as TicketStatus },
+      select: { id: true, currentStatus: true, updatedAt: true },
+    });
+
+    res.status(200).json(updated);
+  } catch {
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to update the ticket's status." } });
   }
 });
 
@@ -1040,6 +1093,258 @@ app.get(
       });
     } catch {
       res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to retrieve the ticket queue." } });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Issue 3-5 (Lab 3) — a small addition beyond api-spec.md's original §6 draft: ui-spec.md §7.1's
+// Reassign control needs a list of active IT Staff/Administrator users to populate its <select>, and
+// nothing else in the current API contract provides one — GET /api/admin/users (§8) is
+// Administrator-only and doesn't exist until Issue 3-6. Scoped to exactly that lookup (id/name/role,
+// no email/password/activation-state), not a preview of admin user management.
+// ---------------------------------------------------------------------------
+app.get(
+  "/api/staff/users",
+  ...requireFullAuth,
+  requireRole("IT_STAFF", "ADMINISTRATOR"),
+  async (_req: Request, res: Response) => {
+    const prisma = getPrisma();
+    try {
+      const users = await prisma.user.findMany({
+        where: { isActive: true, role: { in: ["IT_STAFF", "ADMINISTRATOR"] } },
+        select: { id: true, name: true, role: true },
+        orderBy: { name: "asc" },
+      });
+      res.status(200).json(users);
+    } catch {
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to retrieve staff users." } });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Issue 3-5 (Lab 3) — Staff Ticket Detail (GET) plus claim/reassign, IT Priority, and Internal
+// Notes. api-spec.md §6 is the full contract. Not ownership-restricted — the role check from
+// requireRole is the only gate (specification.md §5.1's "any Ticket, not just owned ones" rule).
+// ---------------------------------------------------------------------------
+app.get(
+  "/api/staff/tickets/:id",
+  ...requireFullAuth,
+  requireRole("IT_STAFF", "ADMINISTRATOR"),
+  async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const ticketId = parseRouteId(req.params.id);
+    if (ticketId === null) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+    }
+
+    try {
+      const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        include: {
+          requester: { select: { id: true, name: true, email: true } },
+          owner: { select: { id: true, name: true, role: true } },
+          category: { select: { id: true, name: true } },
+          relatedSystem: { select: { id: true, name: true } },
+          attachments: { orderBy: { uploadedAt: "asc" } },
+          comments: {
+            orderBy: { createdAt: "asc" },
+            include: { author: { select: { id: true, name: true, role: true } } },
+          },
+          notes: {
+            orderBy: { createdAt: "asc" },
+            include: { author: { select: { id: true, name: true, role: true } } },
+          },
+        },
+      });
+
+      if (!ticket) {
+        return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+      }
+
+      // Same raw-FK-stripping rule as GET /api/tickets/:id: `ownerId` is dropped since the `owner`
+      // relation object above already carries it (api-spec.md §6.1's "full requester object, not
+      // just a name" applies the same way to owner here).
+      const {
+        attachments,
+        comments,
+        notes,
+        requesterId: _requesterId,
+        categoryId: _categoryId,
+        relatedSystemId: _relatedSystemId,
+        ownerId: _ownerId,
+        ...rest
+      } = ticket;
+      res.status(200).json({
+        ...rest,
+        attachments: attachments.map(formatAttachment),
+        comments: comments.map(formatComment),
+        notes: notes.map(formatComment),
+      });
+    } catch {
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to retrieve the ticket." } });
+    }
+  }
+);
+
+app.patch(
+  "/api/staff/tickets/:id/owner",
+  ...requireFullAuth,
+  requireRole("IT_STAFF", "ADMINISTRATOR"),
+  async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const ticketId = parseRouteId(req.params.id);
+    const ownerId = Number(req.body?.ownerId);
+
+    if (ticketId === null) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+    }
+    if (!Number.isInteger(ownerId)) {
+      return res
+        .status(400)
+        .json({ error: { code: "VALIDATION_ERROR", message: "ownerId is required and must be a number." } });
+    }
+
+    try {
+      const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+      if (!ticket) {
+        return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+      }
+
+      // BR-19: checked here (not left to the FK constraint alone) so an invalid target gets a
+      // meaningful 400 INVALID_OWNER instead of a generic 500. BR-20: no "must be current owner to
+      // reassign" check — any active IT Staff/Administrator can claim or reassign.
+      const candidate = await prisma.user.findUnique({ where: { id: ownerId } });
+      const validOwner =
+        !!candidate && candidate.isActive && (candidate.role === "IT_STAFF" || candidate.role === "ADMINISTRATOR");
+      if (!validOwner) {
+        return res.status(400).json({
+          error: { code: "INVALID_OWNER", message: "ownerId must reference an active IT Staff or Administrator user." },
+        });
+      }
+
+      const updated = await prisma.ticket.update({
+        where: { id: ticketId },
+        data: { ownerId },
+        select: { id: true, owner: { select: { id: true, name: true, role: true } } },
+      });
+
+      res.status(200).json(updated);
+    } catch {
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to update the ticket's owner." } });
+    }
+  }
+);
+
+app.patch(
+  "/api/staff/tickets/:id/priority",
+  ...requireFullAuth,
+  requireRole("IT_STAFF", "ADMINISTRATOR"),
+  async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const ticketId = parseRouteId(req.params.id);
+    const itPriority = typeof req.body?.itPriority === "string" ? req.body.itPriority : "";
+
+    if (ticketId === null) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+    }
+    // BR-22: itPriority is changeable at any Current Status — no status check here.
+    if (!VALID_PRIORITIES.includes(itPriority as Priority)) {
+      return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid itPriority value." } });
+    }
+
+    try {
+      const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+      if (!ticket) {
+        return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+      }
+
+      const updated = await prisma.ticket.update({
+        where: { id: ticketId },
+        data: { itPriority: itPriority as Priority },
+        select: { id: true, itPriority: true },
+      });
+
+      res.status(200).json(updated);
+    } catch {
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to update IT Priority." } });
+    }
+  }
+);
+
+// Internal Notes (BR-04, BR-26–BR-28, AC-24). Same request/response shape and validation as the
+// Public Comments routes above, on the Note model instead, and gated by requireRole rather than a
+// visibility check — a Requester never reaches this handler at all, so no Note content, nor even
+// its existence, can leak through this route to that role (BR-29/AC-04).
+app.post(
+  "/api/staff/tickets/:id/notes",
+  ...requireFullAuth,
+  requireRole("IT_STAFF", "ADMINISTRATOR"),
+  async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const authorId = req.currentUser!.id;
+    const ticketId = parseRouteId(req.params.id);
+    const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+
+    if (ticketId === null) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+    }
+    if (!content || content.length > COMMENT_CONTENT_MAX) {
+      return res.status(400).json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: `Note must be 1-${COMMENT_CONTENT_MAX} characters.`,
+          fields: { content: `Note must be 1-${COMMENT_CONTENT_MAX} characters.` },
+        },
+      });
+    }
+
+    try {
+      const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+      if (!ticket) {
+        return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+      }
+
+      const note = await prisma.note.create({
+        data: { ticketId, authorId, content },
+        include: { author: { select: { id: true, name: true, role: true } } },
+      });
+
+      res.status(201).json(formatComment(note));
+    } catch {
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to post the note." } });
+    }
+  }
+);
+
+app.get(
+  "/api/staff/tickets/:id/notes",
+  ...requireFullAuth,
+  requireRole("IT_STAFF", "ADMINISTRATOR"),
+  async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const ticketId = parseRouteId(req.params.id);
+    if (ticketId === null) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+    }
+
+    try {
+      const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        include: {
+          notes: {
+            orderBy: { createdAt: "asc" },
+            include: { author: { select: { id: true, name: true, role: true } } },
+          },
+        },
+      });
+      if (!ticket) {
+        return res.status(404).json({ error: { code: "NOT_FOUND", message: "Ticket not found." } });
+      }
+      res.status(200).json(ticket.notes.map(formatComment));
+    } catch {
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to retrieve notes." } });
     }
   }
 );

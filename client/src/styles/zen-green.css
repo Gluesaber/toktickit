@@ -221,3 +221,12 @@ body {
 .ticket-card + .ticket-card {
   margin-top: 0.75rem;
 }
+
+/* Internal Notes card header — ui-spec.md §7.4. --zg-warning-bg so this card can never be visually
+   mistaken for the Public Comments card next to it, whatever the specific caption text says. */
+.internal-notes-card-header {
+  background-color: var(--zg-warning-bg);
+  color: var(--zg-warning);
+  display: flex;
+  align-items: center;
+}

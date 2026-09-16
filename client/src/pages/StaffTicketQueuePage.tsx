@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Category, SortDir, StaffSortField, StaffTicketListItem, getCategories, getStaffTickets } from "../api.js";
 import { PriorityBadge, StatusBadge, RoleBadge } from "../components/Badges.js";
 
@@ -321,7 +322,9 @@ export default function StaffTicketQueuePage() {
               <tbody>
                 {tickets.map((t) => (
                   <tr key={t.id}>
-                    <td>{t.ticketNumber}</td>
+                    <td>
+                      <Link to={`/queue/${t.id}`}>{t.ticketNumber}</Link>
+                    </td>
                     <td>{formatDate(t.createdAt)}</td>
                     <td>{t.summary}</td>
                     <td>
@@ -354,7 +357,9 @@ export default function StaffTicketQueuePage() {
             {tickets.map((t) => (
               <div className="ticket-card" key={t.id}>
                 <div className="d-flex justify-content-between align-items-start mb-1">
-                  <span className="fw-semibold">{t.ticketNumber}</span>
+                  <Link to={`/queue/${t.id}`} className="fw-semibold">
+                    {t.ticketNumber}
+                  </Link>
                   <StatusBadge status={t.currentStatus} />
                 </div>
                 <p className="mb-2">{t.summary}</p>
