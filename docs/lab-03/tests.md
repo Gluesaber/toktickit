@@ -109,13 +109,13 @@ below).
 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| API-28 | AC-16 | `GET /api/staff/tickets` as IT Staff | Tickets across multiple Requesters returned | Pending |
-| API-29 | AC-18 | `page`/`pageSize`/`sortBy` params | Correct page, accurate `pagination` metadata | Pending |
-| API-30 | AC-19 | Filters matching nothing | `data: []` | Pending |
-| API-31 | §7 | `ownerId=unassigned` | Only tickets with `ownerId: null` returned | Pending |
-| API-32 | §7 | Invalid `sortBy` value | `400 VALIDATION_ERROR` | Pending |
-| API-33 | §7 | `page=0` or non-numeric | Silently clamped to `1` | Pending |
-| API-55 | §7, `ui-spec.md` §6.3 | `categoryId` filter | Only tickets in that Category returned | Pending |
+| API-28 | AC-16 | `GET /api/staff/tickets` as IT Staff | Tickets across multiple Requesters returned | Pass |
+| API-29 | AC-18 | `page`/`pageSize`/`sortBy` params | Correct page, accurate `pagination` metadata | Pass |
+| API-30 | AC-19 | Filters matching nothing | `data: []` | Pass |
+| API-31 | §7 | `ownerId=unassigned` | Only tickets with `ownerId: null` returned | Pass |
+| API-32 | §7 | Invalid `sortBy` value | `400 VALIDATION_ERROR` | Pass |
+| API-33 | §7 | `page=0` or non-numeric | Silently clamped to `1` | Pass |
+| API-55 | §7, `ui-spec.md` §6.3 | `categoryId` filter | Only tickets in that Category returned | Pass |
 
 ### API — `server/tests/lab-03/staff-ticket-detail.api.test.ts`
 
@@ -167,13 +167,15 @@ below).
 | UI-03 | — | Mocked `INVALID_CREDENTIALS` response | Generic message shown, not attached to a specific field | Pass |
 | UI-04 | — | Submit clicked | Busy state shown, button disabled during the request | Pass |
 | UI-05 | AC-06 | Mocked successful login with `mustChangePassword: true` | Redirects to Change Password, not the main app | Pass* |
-| UI-06 | — | Mocked login for each of the 3 roles | Shell renders only that role's nav links (§2 of `ui-spec.md`) | Deferred |
+| UI-06 | — | Mocked login for each of the 3 roles | Shell renders only that role's nav links (§2 of `ui-spec.md`) | Pass |
 
 \* UI-05 verifies the underlying `AuthContext` state (`status: authenticated`,
 `user.mustChangePassword: true`) rather than the actual route render — `LoginPage` is tested
-standalone, and the redirect itself lives in `App.tsx`'s gate. UI-06 is deferred: `AppShell`'s nav
-links are still `{My Tickets, Create Ticket}` regardless of role as of Issue 3-2 — no Queue/User
-Management screens exist yet to scope. Both noted directly in `Login.test.tsx`.
+standalone, and the redirect itself lives in `App.tsx`'s gate. UI-06 was deferred at Issue 3-2 (no
+Queue/User Management screens existed yet to scope) and completed at Issue 3-4 once
+`StaffTicketQueuePage`/`App.tsx`'s role-conditional routing existed — tested against the full `App`
+rather than `LoginPage` alone, since the nav lives in `AppShell`. Both noted directly in
+`Login.test.tsx`.
 
 ### UI component — `client/tests/lab-03/ChangePassword.test.tsx`
 
@@ -196,11 +198,11 @@ Management screens exist yet to scope. Both noted directly in `Login.test.tsx`.
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-14 | AC-19 | Mocked zero-match response, filter active | No-results state + clear-filters action | Pending |
-| UI-15 | — | Typing in search | Triggers a re-fetch with the `search` param set | Pending |
-| UI-16 | AC-18 | Changing the sort control | Re-fetch with `sortBy`/`sortDir` params | Pending |
-| UI-17 | AC-18 | Clicking "next page" | Re-fetch with the incremented `page` param | Pending |
-| STYLE-01 | — | Status/priority/role badges on Queue rows | Each renders a color class **and** a visible text label | Pending |
+| UI-14 | AC-19 | Mocked zero-match response, filter active | No-results state + clear-filters action | Pass |
+| UI-15 | — | Typing in search | Triggers a re-fetch with the `search` param set | Pass |
+| UI-16 | AC-18 | Changing the sort control | Re-fetch with `sortBy`/`sortDir` params | Pass |
+| UI-17 | AC-18 | Clicking "next page" | Re-fetch with the incremented `page` param | Pass |
+| STYLE-01 | — | Status/priority/role badges on Queue rows | Each renders a color class **and** a visible text label | Pass |
 
 ### UI component — `client/tests/lab-03/StaffTicketDetail.test.tsx`
 
@@ -307,34 +309,36 @@ before a UI Issue is marked Done is a human look at the actual screenshots again
 ## 6. Final Results
 
 **In progress.** Updated after each landed Issue — following the same discipline `docs/lab-02/tests.md`
-§6 used — not reconstructed in one pass at the end. Current as of **Issue 3-3 (Requester Regression)**;
+§6 used — not reconstructed in one pass at the end. Current as of **Issue 3-4 (Staff Ticket Queue)**;
 every other Issue's rows remain `Pending` below until their own branch lands. A full staleness sweep
 (every `Pending`/`TODO` row reconciled against real, verified state) still happens as part of Issue 3-8,
 per the doc-finalization habit this project has already needed twice in Lab 2 — but that's a final audit,
 not the only time this table gets touched.
 
-The API "Planned" total drops from 100's original 55 to 52 this issue: API-25/26/27 (Requester
+The API "Planned" total drops from 100's original 55 to 52 as of Issue 3-3: API-25/26/27 (Requester
 self-Cancel) are retired from this file's plan per the Cancel-scope decision (§2) rather than carried as
 permanently `Pending` — Issue 3-5 will add its own IDs for the full transition matrix when it's planned in
-detail, which will likely restore or exceed this sprint total.
+detail, which will likely restore or exceed this sprint total. UI-06 (role-scoped nav), deferred at
+Issue 3-2 for lack of a second role-scoped screen to test against, completes at this issue.
 
 | Level | Planned (sprint total) | Actual so far | Passing | Failing | Deferred |
 |---|---|---|---|---|---|
 | Unit | 4 | 2 (UNIT-01, 02) | 2 | 0 | 0 |
-| API | 52 | 19 (API-01–24, 53, 54) | 19 | 0 | 0 |
-| UI component | 27 | 13 (UI-01–13) | 12 | 0 | 1 (UI-06) |
-| UI style | 2 | 0 | 0 | 0 | 0 |
+| API | 52 | 26 (API-01–33, 53–55) | 26 | 0 | 0 |
+| UI component | 27 | 17 (UI-01–17) | 17 | 0 | 0 |
+| UI style | 2 | 1 (STYLE-01) | 1 | 0 | 0 |
 | Responsive | 5 | 0 | 0 | 0 | 0 |
 | E2E | 7 | 0 | 0 | 0 | 0 |
-| **Total** | **97** | **34** | **33** | **0** | **1** |
+| **Total** | **97** | **46** | **46** | **0** | **0** |
 
 "Actual so far" counts planned Test IDs with a real, verified implementation. The real `npm test` suites
-run more raw cases than that (102 server + 40 client `it()` blocks as of this issue, against 32 planned
-IDs combined) — extra edge cases like the missing-field/idempotent-logout/role-leak checks don't map to a
-single planned ID each, same pattern Lab 2 saw (`docs/lab-02/tests.md` §6: actual execution count grew
-past the original per-ID estimate as real edge cases were found). Re-run repeatedly across both Issue 3-2
-and 3-3 (including after fixing two unrelated manual-testing data-pollution incidents, both caught by
-`API-54`) with zero flakes; see §7.
+run more raw cases than that (115 server + 50 client `it()` blocks as of this issue, against 46 planned
+IDs combined) — extra edge cases like the missing-field/idempotent-logout/role-leak/parity checks don't
+map to a single planned ID each, same pattern Lab 2 saw (`docs/lab-02/tests.md` §6: actual execution count
+grew past the original per-ID estimate as real edge cases were found). Re-run repeatedly across Issues
+3-2, 3-3, and 3-4 — including after fixing three separate manual-testing data-pollution incidents (all
+caught by `API-54`) and one test-isolation bug in this issue's own `staff-queue.api.test.ts` (caught by
+its own pagination/categoryId assertions going flaky on repeated runs) — with zero flakes since; see §7.
 
 ## 7. Known Limitations or Deferred Tests
 
@@ -363,3 +367,17 @@ and are recorded now so they aren't mistaken for gaps later:
   verification used a disposable `manual-verify@example.test` account instead (created and left in place,
   same as other `@example.test` fixture rows this project's test suites already leave behind), precisely
   to avoid a third recurrence.
+- **The incident recurred a third time anyway, before Issue 3-4 started** — `alex.rivera@example.edu` was
+  found flipped again at the start of this issue's work, despite Issue 3-3 having deliberately avoided
+  touching it. Restored the same way once more. This project doesn't yet have a `npm run reset-dev-accounts`
+  script or similar; worth building one if a fourth recurrence happens.
+- **`staff-queue.api.test.ts` (Issue 3-4) had its own test-isolation bug**, unrelated to the account
+  incidents above: its `beforeAll` used a static summary string ("Fixture ticket for Staff Queue tests")
+  as both the created tickets' summary and the search term every assertion filtered by. Because the
+  Staff Queue is deliberately unscoped (AC-16 — every Requester's tickets, not just one session's) and
+  this dev DB is never reset between `npm test` invocations, every repeated run added 12 more tickets
+  matching that same static string, so exact-count assertions (`toBe(3)`, `toHaveLength(2)`,
+  `totalItems: 12`) passed on first creation but went flaky on every subsequent run. Fixed by folding a
+  `Date.now()` suffix into the fixture summary itself, the same uniqueness technique already used for
+  fixture email addresses throughout this project — confirmed stable across three consecutive re-runs
+  after the fix.

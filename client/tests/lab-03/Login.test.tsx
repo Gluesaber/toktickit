@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import LoginPage from "../../src/pages/LoginPage.js";
+import App from "../../src/App.js";
 import { AuthProvider, useAuth } from "../../src/context/AuthContext.js";
 import * as api from "../../src/api.js";
 import { ApiError, type User } from "../../src/api.js";
@@ -125,9 +126,75 @@ describe("LoginPage", () => {
     });
   });
 
-  // UI-06 (role-scoped nav) is not yet testable here: AppShell's nav links are still exactly
-  // {My Tickets, Create Ticket} regardless of role as of Issue 3-2 (no Queue/User Management
-  // screens exist yet to scope). Deferred to whichever of Issue 3-4/3-6 adds the first
-  // role-conditional nav link — same "deferred, not skipped silently" pattern Lab 2 used for
-  // E2E-05/E2E-06 (docs/lab-02/tests.md §7).
+});
+
+// UI-06 (Issue 3-4) — role-scoped nav. Was deferred back in Issue 3-2 ("no Queue/User Management
+// screens exist yet to scope"); testable now that StaffTicketQueuePage/App.tsx's role-conditional
+// routing exist. Rendered against the full App (not LoginPage alone) since the nav lives in
+// AppShell, reached through App.tsx's role-conditional routes.
+describe("Role-scoped navigation (UI-06)", () => {
+  it("shows only My Tickets/Create Ticket for a Requester, never Ticket Queue", async () => {
+    vi.spyOn(api, "getMe").mockResolvedValue({
+      id: 1,
+      name: "Alex Rivera",
+      email: "alex.rivera@example.edu",
+      role: "REQUESTER",
+      isActive: true,
+      mustChangePassword: false,
+    });
+    vi.spyOn(api, "getTickets").mockResolvedValue({
+      data: [],
+      pagination: { page: 1, pageSize: 10, totalItems: 0, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    vi.spyOn(api, "getCategories").mockResolvedValue([]);
+    vi.spyOn(api, "getRelatedSystems").mockResolvedValue([]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("link", { name: /my tickets/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /create ticket/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /ticket queue/i })).not.toBeInTheDocument();
+  });
+
+  it("shows only Ticket Queue for IT Staff, never My Tickets/Create Ticket", async () => {
+    vi.spyOn(api, "getMe").mockResolvedValue({
+      id: 2,
+      name: "Jordan Lee",
+      email: "jordan.lee@example.test",
+      role: "IT_STAFF",
+      isActive: true,
+      mustChangePassword: false,
+    });
+    vi.spyOn(api, "getStaffTickets").mockResolvedValue({
+      data: [],
+      pagination: { page: 1, pageSize: 10, totalItems: 0, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    vi.spyOn(api, "getCategories").mockResolvedValue([]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("link", { name: /ticket queue/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /my tickets/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /create ticket/i })).not.toBeInTheDocument();
+  });
+
+  it("routes an Administrator to the Ticket Queue too (full IT Staff parity)", async () => {
+    vi.spyOn(api, "getMe").mockResolvedValue({
+      id: 3,
+      name: "Jamie Whitfield",
+      email: "jamie.whitfield@example.edu",
+      role: "ADMINISTRATOR",
+      isActive: true,
+      mustChangePassword: false,
+    });
+    vi.spyOn(api, "getStaffTickets").mockResolvedValue({
+      data: [],
+      pagination: { page: 1, pageSize: 10, totalItems: 0, totalPages: 1, hasNextPage: false, hasPreviousPage: false },
+    });
+    vi.spyOn(api, "getCategories").mockResolvedValue([]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("link", { name: /ticket queue/i })).toBeInTheDocument();
+  });
 });

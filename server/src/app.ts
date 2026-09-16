@@ -14,6 +14,7 @@ import {
   verifyPassword,
   requireAuth,
   requirePasswordChanged,
+  requireRole,
   toSafeUser,
   MIN_PASSWORD_LENGTH,
   SESSION_COOKIE_NAME,
@@ -272,7 +273,20 @@ app.get("/api/related-systems", ...requireFullAuth, async (_req: Request, res: R
 // ---------------------------------------------------------------------------
 const SORTABLE_FIELDS = ["createdAt", "ticketNumber", "currentStatus", "requestedPriority"] as const;
 type SortableField = (typeof SORTABLE_FIELDS)[number];
-const VALID_STATUSES: TicketStatus[] = ["NEW", "IN_PROGRESS", "RESOLVED", "CLOSED", "CANCELLED", "REOPENED"];
+// Issue 3-4 (Lab 3) — extended to all 8 values now that the enum has them (schema.prisma). A
+// Requester filtering their own list by OPEN/WAITING_FOR_REQUESTER just gets zero matches today
+// (nothing produces those statuses until Issue 3-5) — same "well-formed but currently unmatched"
+// treatment as any other valid-but-empty filter, not a 400.
+const VALID_STATUSES: TicketStatus[] = [
+  "NEW",
+  "OPEN",
+  "IN_PROGRESS",
+  "WAITING_FOR_REQUESTER",
+  "RESOLVED",
+  "CLOSED",
+  "CANCELLED",
+  "REOPENED",
+];
 
 app.get("/api/tickets", ...requireFullAuth, async (req: Request, res: Response) => {
   const prisma = getPrisma();
@@ -494,6 +508,10 @@ app.post("/api/tickets", ...requireFullAuth, async (req: Request, res: Response)
         summary,
         description,
         requestedPriority: requestedPriority as Priority,
+        // Issue 3-4 (Lab 3) — BR-21: itPriority initializes equal to requestedPriority and is never
+        // client-supplied at creation; only IT Staff/Administrator can change it afterward
+        // (Issue 3-5's PATCH /api/staff/tickets/:id/priority).
+        itPriority: requestedPriority as Priority,
       },
     });
 
@@ -865,5 +883,165 @@ app.patch("/api/tickets/:id/resolved-indication", ...requireFullAuth, async (req
     res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to update the ticket." } });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Issue 3-4 (Lab 3) — the Staff Ticket Queue. api-spec.md §6/§7 is the full contract this
+// implements. First route in the app to actually compose requireRole — scaffolded since Issue 3-2,
+// unused until now. Full IT Staff/Administrator parity (specification.md §11): both roles see the
+// exact same Queue, no ownership restriction at all (every Ticket is visible to both).
+// Read-only: no claim/reassign/priority/notes here — those, plus GET /api/staff/tickets/:id, are
+// Issue 3-5's job (server/tests/lab-03/staff-ticket-detail.api.test.ts, not this file).
+// ---------------------------------------------------------------------------
+const STAFF_SORTABLE_FIELDS = ["createdAt", "currentStatus", "itPriority", "updatedAt"] as const;
+type StaffSortableField = (typeof STAFF_SORTABLE_FIELDS)[number];
+
+app.get(
+  "/api/staff/tickets",
+  ...requireFullAuth,
+  requireRole("IT_STAFF", "ADMINISTRATOR"),
+  async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const q = req.query;
+
+    const fields: Record<string, string> = {};
+
+    let categoryId: number | undefined;
+    if (typeof q.categoryId === "string" && q.categoryId !== "") {
+      categoryId = Number(q.categoryId);
+      if (!Number.isInteger(categoryId)) fields.categoryId = "categoryId must be a number.";
+    }
+
+    let priority: Priority | undefined;
+    if (typeof q.requestedPriority === "string" && q.requestedPriority !== "") {
+      if (!VALID_PRIORITIES.includes(q.requestedPriority as Priority)) {
+        fields.requestedPriority = "Invalid requestedPriority value.";
+      } else {
+        priority = q.requestedPriority as Priority;
+      }
+    }
+
+    let itPriority: Priority | undefined;
+    if (typeof q.itPriority === "string" && q.itPriority !== "") {
+      if (!VALID_PRIORITIES.includes(q.itPriority as Priority)) {
+        fields.itPriority = "Invalid itPriority value.";
+      } else {
+        itPriority = q.itPriority as Priority;
+      }
+    }
+
+    let status: TicketStatus | undefined;
+    if (typeof q.currentStatus === "string" && q.currentStatus !== "") {
+      if (!VALID_STATUSES.includes(q.currentStatus as TicketStatus)) {
+        fields.currentStatus = "Invalid currentStatus value.";
+      } else {
+        status = q.currentStatus as TicketStatus;
+      }
+    }
+
+    // api-spec.md §7: ownerId is either a numeric id or the literal string "unassigned".
+    let ownerId: number | null | undefined;
+    if (typeof q.ownerId === "string" && q.ownerId !== "") {
+      if (q.ownerId === "unassigned") {
+        ownerId = null;
+      } else {
+        const parsed = Number(q.ownerId);
+        if (!Number.isInteger(parsed)) {
+          fields.ownerId = 'ownerId must be a number or "unassigned".';
+        } else {
+          ownerId = parsed;
+        }
+      }
+    }
+
+    const sortByRaw = typeof q.sortBy === "string" && q.sortBy !== "" ? q.sortBy : "createdAt";
+    if (!STAFF_SORTABLE_FIELDS.includes(sortByRaw as StaffSortableField)) {
+      fields.sortBy = "Invalid sortBy value.";
+    }
+    const sortBy: StaffSortableField = STAFF_SORTABLE_FIELDS.includes(sortByRaw as StaffSortableField)
+      ? (sortByRaw as StaffSortableField)
+      : "createdAt";
+
+    const sortDirRaw = typeof q.sortDir === "string" && q.sortDir !== "" ? q.sortDir : "desc";
+    if (sortDirRaw !== "asc" && sortDirRaw !== "desc") {
+      fields.sortDir = "Invalid sortDir value.";
+    }
+    const sortDir: "asc" | "desc" = sortDirRaw === "asc" ? "asc" : "desc";
+
+    if (Object.keys(fields).length > 0) {
+      return res
+        .status(400)
+        .json({ error: { code: "VALIDATION_ERROR", message: "Invalid query parameters.", fields } });
+    }
+
+    const page = clampPage(q.page);
+    const pageSize = clampPageSize(q.pageSize);
+    const search = typeof q.search === "string" ? q.search.trim() : "";
+
+    // No requesterId filter at all — the Queue is shared across every Requester (AC-16), unlike
+    // GET /api/tickets above.
+    const where: Record<string, unknown> = {};
+    if (categoryId !== undefined) where.categoryId = categoryId;
+    if (priority) where.requestedPriority = priority;
+    if (itPriority) where.itPriority = itPriority;
+    if (status) where.currentStatus = status;
+    if (ownerId !== undefined) where.ownerId = ownerId;
+    if (search) {
+      where.OR = [
+        { ticketNumber: { contains: search, mode: "insensitive" } },
+        { summary: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    // Same tie-break rule as GET /api/tickets (BR-16): createdAt desc, id desc, regardless of sortBy.
+    const orderBy =
+      sortBy === "createdAt"
+        ? [{ createdAt: sortDir }, { id: "desc" as const }]
+        : [{ [sortBy]: sortDir }, { createdAt: "desc" as const }, { id: "desc" as const }];
+
+    try {
+      const [tickets, totalItems] = await Promise.all([
+        prisma.ticket.findMany({
+          where,
+          orderBy,
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          include: {
+            requester: { select: { name: true } },
+            owner: { select: { id: true, name: true, role: true } },
+          },
+        }),
+        prisma.ticket.count({ where }),
+      ]);
+
+      const data = tickets.map((t) => ({
+        id: t.id,
+        ticketNumber: t.ticketNumber,
+        summary: t.summary,
+        requesterName: t.requester.name,
+        requestedPriority: t.requestedPriority,
+        itPriority: t.itPriority,
+        currentStatus: t.currentStatus,
+        owner: t.owner ? { id: t.owner.id, name: t.owner.name, role: t.owner.role } : null,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      }));
+
+      const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+      res.status(200).json({
+        data,
+        pagination: {
+          page,
+          pageSize,
+          totalItems,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      });
+    } catch {
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to retrieve the ticket queue." } });
+    }
+  }
+);
 
 export default app;

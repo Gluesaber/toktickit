@@ -8,9 +8,13 @@ import { RoleBadge } from "./Badges.js";
 // Issue 3-3 (Lab 3) — the Dev Requester chip/"Change Requester" action (the accepted intermediate
 // duplication from Issue 3-2) is removed: the authenticated identity above is now the only one,
 // since RequesterContext/DevRequesterSelector no longer exist (BR-39).
+// Issue 3-4 (Lab 3) — nav is role-scoped for the first time (FR-06): a role never sees a link to a
+// destination App.tsx wouldn't even route it to. Requester gets My Tickets/Create Ticket; IT
+// Staff/Administrator get Ticket Queue.
 export default function AppShell() {
   const { user, logout } = useAuth();
   const [navOpen, setNavOpen] = useState(false);
+  const isStaff = user?.role === "IT_STAFF" || user?.role === "ADMINISTRATOR";
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `app-nav-link${isActive ? " active" : ""}`;
@@ -38,12 +42,20 @@ export default function AppShell() {
             className={`d-lg-flex gap-1 ${navOpen ? "d-flex flex-column w-100" : "d-none"}`}
             aria-label="Primary"
           >
-            <NavLink to="/tickets" className={navLinkClass} end>
-              My Tickets
-            </NavLink>
-            <NavLink to="/tickets/new" className={navLinkClass}>
-              Create Ticket
-            </NavLink>
+            {isStaff ? (
+              <NavLink to="/queue" className={navLinkClass} end>
+                Ticket Queue
+              </NavLink>
+            ) : (
+              <>
+                <NavLink to="/tickets" className={navLinkClass} end>
+                  My Tickets
+                </NavLink>
+                <NavLink to="/tickets/new" className={navLinkClass}>
+                  Create Ticket
+                </NavLink>
+              </>
+            )}
           </nav>
 
           {user && (
