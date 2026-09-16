@@ -22,16 +22,32 @@ export function PriorityBadge({ priority }: { priority: Priority }) {
 
 const STATUS_LABELS: Record<string, string> = {
   NEW: "New",
+  OPEN: "Open",
   IN_PROGRESS: "In Progress",
+  WAITING_FOR_REQUESTER: "Waiting for Requester",
   RESOLVED: "Resolved",
   CLOSED: "Closed",
   CANCELLED: "Cancelled",
   REOPENED: "Reopened",
 };
 
+// Issue 3-4 (Lab 3) — all 8 statuses now map to their own class (docs/lab-03/ui-spec.md §1.2,
+// specified in Issue 3-2 but only implemented now that the Queue needs to tell them apart). OPEN and
+// WAITING_FOR_REQUESTER can't actually appear on any Ticket yet (Issue 3-5's transition endpoint is
+// what produces them) — mapped anyway so nothing needs to change here when that issue ships.
+const STATUS_CLASSES: Record<string, string> = {
+  NEW: "zg-badge zg-badge-status-new",
+  OPEN: "zg-badge zg-badge-status-open",
+  IN_PROGRESS: "zg-badge zg-badge-status-in_progress",
+  WAITING_FOR_REQUESTER: "zg-badge zg-badge-status-waiting_for_requester",
+  RESOLVED: "zg-badge zg-badge-status-resolved",
+  CLOSED: "zg-badge zg-badge-status-closed",
+  CANCELLED: "zg-badge zg-badge-status-cancelled",
+  REOPENED: "zg-badge zg-badge-status-reopened",
+};
+
 export function StatusBadge({ status }: { status: string }) {
-  // Only NEW is reachable in Lab 2 (BR-02); the class falls back gracefully for later labs' values.
-  const className = status === "NEW" ? "zg-badge zg-badge-status-new" : "zg-badge zg-badge-status-other";
+  const className = STATUS_CLASSES[status] ?? "zg-badge zg-badge-status-other";
   return <span className={className}>{STATUS_LABELS[status] ?? status}</span>;
 }
 

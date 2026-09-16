@@ -149,6 +149,46 @@ body {
   color: var(--zg-primary);
 }
 
+/* Issue 3-4 (Lab 3) — the remaining 7 statuses, per docs/lab-03/ui-spec.md §1.2 (documented back in
+   Issue 3-2 but left unimplemented until now — the Queue is the first screen that actually needs to
+   tell more than one status apart at a glance). */
+.zg-badge-status-open {
+  background-color: var(--zg-info-bg);
+  color: var(--zg-info-text);
+}
+
+.zg-badge-status-in_progress {
+  background-color: #d9ede1;
+  color: var(--zg-secondary);
+}
+
+.zg-badge-status-waiting_for_requester {
+  background-color: var(--zg-warning-bg);
+  color: var(--zg-warning);
+}
+
+.zg-badge-status-resolved {
+  background-color: var(--zg-pale);
+  color: var(--zg-secondary);
+}
+
+.zg-badge-status-closed {
+  background-color: var(--zg-neutral-bg);
+  color: var(--zg-neutral-text);
+}
+
+.zg-badge-status-reopened {
+  background-color: #fde6d8;
+  color: #9a3412;
+}
+
+.zg-badge-status-cancelled {
+  background-color: var(--zg-error-bg);
+  color: var(--zg-error);
+}
+
+/* Fallback only — every real status above has its own class; this exists purely so an unrecognized
+   value fails safe instead of rendering unstyled. */
 .zg-badge-status-other {
   background-color: var(--zg-field-readonly-bg);
   color: var(--zg-text-muted);

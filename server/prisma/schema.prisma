@@ -47,10 +47,10 @@ enum Role {
 // §7 "Migration strategy", BR-37). `passwordHash`/`role` have no DB-level default (every insert sets
 // them explicitly — see the hand-written migration SQL for how *existing* rows were backfilled
 // one time only); `mustChangePassword` keeps its default so new rows are safe-by-default.
-// `ownerId`/`itPriority` on Ticket (and the resulting second `ticketsOwned` relation here) are
-// deliberately not part of this migration — see specification.md §11 "Migration scope": each later
-// issue (3-4 Staff Queue, 3-5 Staff Ticket Ops) adds its own incremental migration when it actually
-// needs those fields, rather than this issue carrying schema nothing yet uses.
+// `ownerId`/`itPriority` on Ticket (and the resulting second `ticketsOwned` relation here) were
+// deliberately not part of Issue 3-2's migration — see specification.md §11 "Migration scope": each
+// issue adds its own incremental migration when it actually needs new fields. Issue 3-4 (Staff
+// Queue) is the first to need them, since the Queue displays/filters/sorts by both.
 model User {
   id                 Int      @id @default(autoincrement())
   name               String
@@ -62,15 +62,23 @@ model User {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  tickets  Ticket[]
-  comments Comment[]
+  tickets      Ticket[]
+  ticketsOwned Ticket[] @relation("TicketOwner")
+  comments     Comment[]
 }
 
-// Only `NEW` is ever written or read in Lab 2 (BR-02); the remaining values are reserved so Lab 3's
-// status-workflow labs don't require a breaking schema change — see specification.md §11.
+// Only `NEW` is ever written or read through Lab 2 (BR-02); the remaining values were reserved so
+// Lab 3's status-workflow labs wouldn't require a breaking schema change — see specification.md §11.
+// Issue 3-4 (Lab 3) — `OPEN`/`WAITING_FOR_REQUESTER` added now (a purely additive enum change, no
+// data migration needed) so the Staff Ticket Queue's status filter can honor its own already-written
+// contract (api-spec.md §7: "any of the 8 status enum values") immediately, rather than shipping a
+// filter two issues short of complete. Nothing produces these two values yet — that's Issue 3-5's
+// transition endpoint — so no seeded or existing Ticket will actually have either status until then.
 enum TicketStatus {
   NEW
+  OPEN
   IN_PROGRESS
+  WAITING_FOR_REQUESTER
   RESOLVED
   CLOSED
   CANCELLED
@@ -91,27 +99,36 @@ enum Priority {
 // every Ticket until Issue 3-5 introduces the status-transition endpoint (specification.md §11,
 // "Cancel scope" decision — the whole PATCH .../status endpoint, including the Requester's own
 // self-Cancel case, is deferred there rather than split across two issues).
+// Issue 3-4 (Lab 3) — `ownerId`/`itPriority` added. `itPriority` is initialized equal to
+// `requestedPriority` at creation (BR-21) and is otherwise read-only until Issue 3-5's
+// PATCH /api/staff/tickets/:id/priority exists; `ownerId` stays null (unassigned) for every Ticket
+// until that same issue's claim/reassign endpoint exists — Issue 3-4 itself never writes either
+// field, only reads them for the Queue's columns/filters/sort.
 model Ticket {
-  id                          Int          @id @default(autoincrement())
-  ticketNumber                String       @unique
-  requesterId                 Int
-  categoryId                  Int
-  relatedSystemId             Int
-  summary                     String
-  description                 String       @db.Text
-  requestedPriority           Priority
-  currentStatus               TicketStatus @default(NEW)
+  id                           Int          @id @default(autoincrement())
+  ticketNumber                 String       @unique
+  requesterId                  Int
+  ownerId                      Int?
+  categoryId                   Int
+  relatedSystemId              Int
+  summary                      String
+  description                  String       @db.Text
+  requestedPriority            Priority
+  itPriority                   Priority
+  currentStatus                TicketStatus @default(NEW)
   requesterConfirmedResolvedAt DateTime?
-  createdAt                   DateTime     @default(now())
-  updatedAt                   DateTime     @updatedAt
+  createdAt                    DateTime     @default(now())
+  updatedAt                    DateTime     @updatedAt
 
   requester     User          @relation(fields: [requesterId], references: [id])
+  owner         User?         @relation("TicketOwner", fields: [ownerId], references: [id])
   category      Category      @relation(fields: [categoryId], references: [id])
   relatedSystem RelatedSystem @relation(fields: [relatedSystemId], references: [id])
   attachments   Attachment[]
   comments      Comment[]
 
   @@index([requesterId])
+  @@index([ownerId])
   @@index([categoryId])
   @@index([relatedSystemId])
   @@index([currentStatus])

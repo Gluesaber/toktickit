@@ -287,6 +287,61 @@ export async function markProblemResolved(ticketId: number): Promise<{ id: numbe
 }
 
 // ---------------------------------------------------------------------------
+// Issue 3-4 (Lab 3) — the Staff Ticket Queue. api-spec.md §6/§7.
+// ---------------------------------------------------------------------------
+
+export interface StaffTicketListItem {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  requesterName: string;
+  requestedPriority: Priority;
+  itPriority: Priority;
+  currentStatus: string;
+  owner: { id: number; name: string; role: Role } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffTicketListResponse {
+  data: StaffTicketListItem[];
+  pagination: PaginationMeta;
+}
+
+export type StaffSortField = "createdAt" | "currentStatus" | "itPriority" | "updatedAt";
+
+export interface StaffTicketListQuery {
+  search?: string;
+  categoryId?: number;
+  requestedPriority?: Priority;
+  itPriority?: Priority;
+  currentStatus?: string;
+  ownerId?: number | "unassigned";
+  sortBy?: StaffSortField;
+  sortDir?: SortDir;
+  page?: number;
+  pageSize?: number;
+}
+
+export async function getStaffTickets(query: StaffTicketListQuery): Promise<StaffTicketListResponse> {
+  const params = new URLSearchParams();
+  if (query.search) params.set("search", query.search);
+  if (query.categoryId !== undefined) params.set("categoryId", String(query.categoryId));
+  if (query.requestedPriority) params.set("requestedPriority", query.requestedPriority);
+  if (query.itPriority) params.set("itPriority", query.itPriority);
+  if (query.currentStatus) params.set("currentStatus", query.currentStatus);
+  if (query.ownerId !== undefined) params.set("ownerId", String(query.ownerId));
+  if (query.sortBy) params.set("sortBy", query.sortBy);
+  if (query.sortDir) params.set("sortDir", query.sortDir);
+  if (query.page !== undefined) params.set("page", String(query.page));
+  if (query.pageSize !== undefined) params.set("pageSize", String(query.pageSize));
+
+  const res = await fetch(`${API_URL}/api/staff/tickets?${params.toString()}`, { credentials: "include" });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
 // Issue 3-2 (Lab 3) — Authentication. api-spec.md §1.
 // `credentials: "include"` on every one of these: the session cookie (BR-09) needs to ride along
 // even though vite.config.ts's dev proxy already makes this same-origin in practice — explicit here
