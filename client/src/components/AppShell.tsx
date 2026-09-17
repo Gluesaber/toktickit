@@ -11,10 +11,14 @@ import { RoleBadge } from "./Badges.js";
 // Issue 3-4 (Lab 3) — nav is role-scoped for the first time (FR-06): a role never sees a link to a
 // destination App.tsx wouldn't even route it to. Requester gets My Tickets/Create Ticket; IT
 // Staff/Administrator get Ticket Queue.
+// Issue 3-6 (Lab 3) — Administrator additionally gets User Management, on top of (not instead of)
+// the Ticket Queue link, matching the "full IT Staff parity, plus User Management" decision
+// (specification.md §11).
 export default function AppShell() {
   const { user, logout } = useAuth();
   const [navOpen, setNavOpen] = useState(false);
   const isStaff = user?.role === "IT_STAFF" || user?.role === "ADMINISTRATOR";
+  const isAdministrator = user?.role === "ADMINISTRATOR";
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `app-nav-link${isActive ? " active" : ""}`;
@@ -43,9 +47,16 @@ export default function AppShell() {
             aria-label="Primary"
           >
             {isStaff ? (
-              <NavLink to="/queue" className={navLinkClass} end>
-                Ticket Queue
-              </NavLink>
+              <>
+                <NavLink to="/queue" className={navLinkClass} end>
+                  Ticket Queue
+                </NavLink>
+                {isAdministrator && (
+                  <NavLink to="/admin/users" className={navLinkClass} end>
+                    User Management
+                  </NavLink>
+                )}
+              </>
             ) : (
               <>
                 <NavLink to="/tickets" className={navLinkClass} end>

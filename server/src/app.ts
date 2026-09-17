@@ -3,7 +3,7 @@ import cors from "cors";
 import fs from "node:fs/promises";
 import path from "node:path";
 import multer from "multer";
-import { Priority, TicketStatus } from "@prisma/client";
+import { Priority, TicketStatus, Role } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 import { formatTicketNumber } from "./ticketNumber.js";
 import { clampPage, clampPageSize } from "./ticketQuery.js";
@@ -1345,6 +1345,231 @@ app.get(
       res.status(200).json(ticket.notes.map(formatComment));
     } catch {
       res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to retrieve notes." } });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Issue 3-6 (Lab 3) — Administrator User Management. api-spec.md §8 is the full contract. No
+// schema changes needed: `User` already carries every field this issue reads/writes (added in
+// Issue 3-2's migration, anticipated then per specification.md §7).
+// ---------------------------------------------------------------------------
+const VALID_ROLES: Role[] = ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"];
+
+app.get(
+  "/api/admin/users",
+  ...requireFullAuth,
+  requireRole("ADMINISTRATOR"),
+  async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const q = req.query;
+
+    let role: Role | undefined;
+    if (typeof q.role === "string" && q.role !== "") {
+      if (!VALID_ROLES.includes(q.role as Role)) {
+        return res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "Invalid role value." } });
+      }
+      role = q.role as Role;
+    }
+    const search = typeof q.search === "string" ? q.search.trim() : "";
+
+    // No pagination on this list, per the labsheet's explicit exclusion (api-spec.md §8).
+    const where: Record<string, unknown> = {};
+    if (role) where.role = role;
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    try {
+      const users = await prisma.user.findMany({
+        where,
+        select: { id: true, name: true, email: true, role: true, isActive: true },
+        orderBy: { name: "asc" },
+      });
+      res.status(200).json(users);
+    } catch {
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to retrieve users." } });
+    }
+  }
+);
+
+app.post(
+  "/api/admin/users",
+  ...requireFullAuth,
+  requireRole("ADMINISTRATOR"),
+  async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const body = req.body ?? {};
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const role = typeof body.role === "string" ? body.role : "";
+    const initialPassword = typeof body.initialPassword === "string" ? body.initialPassword : "";
+    const isActive = typeof body.isActive === "boolean" ? body.isActive : true;
+
+    const fields: Record<string, string> = {};
+    if (!name) fields.name = "Name is required.";
+    if (!email) fields.email = "Email is required.";
+    if (!VALID_ROLES.includes(role as Role)) fields.role = "Please select a role.";
+    if (initialPassword.length < MIN_PASSWORD_LENGTH) {
+      fields.initialPassword = `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+    }
+    if (Object.keys(fields).length > 0) {
+      return res
+        .status(400)
+        .json({ error: { code: "VALIDATION_ERROR", message: "Please correct the highlighted fields.", fields } });
+    }
+
+    try {
+      // BR-31: case-insensitive uniqueness — `email` is already lowercased above, and every row's
+      // `email` is stored lowercased (specification.md §11), so a plain unique lookup is sufficient.
+      const existing = await prisma.user.findUnique({ where: { email } });
+      if (existing) {
+        return res.status(409).json({ error: { code: "DUPLICATE_EMAIL", message: "This email is already in use." } });
+      }
+
+      // BR-30: mustChangePassword is always true for a new user, never client-settable.
+      const passwordHash = await hashPassword(initialPassword);
+      const user = await prisma.user.create({
+        data: { name, email, role: role as Role, isActive, passwordHash, mustChangePassword: true },
+      });
+
+      res.status(201).json(toSafeUser(user));
+    } catch {
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to create the user." } });
+    }
+  }
+);
+
+app.patch(
+  "/api/admin/users/:id",
+  ...requireFullAuth,
+  requireRole("ADMINISTRATOR"),
+  async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const currentUser = req.currentUser!;
+    const targetId = parseRouteId(req.params.id);
+    const body = req.body ?? {};
+
+    if (targetId === null) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "User not found." } });
+    }
+
+    // Any subset of {name, email, role, isActive} — passwordHash/mustChangePassword are never
+    // editable through this route (api-spec.md §8: reset-password is the only path that touches a
+    // password).
+    const fields: Record<string, string> = {};
+    const data: { name?: string; email?: string; role?: Role; isActive?: boolean } = {};
+
+    if (body.name !== undefined) {
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      if (!name) fields.name = "Name is required.";
+      else data.name = name;
+    }
+    if (body.email !== undefined) {
+      const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+      if (!email) fields.email = "Email is required.";
+      else data.email = email;
+    }
+    if (body.role !== undefined) {
+      if (!VALID_ROLES.includes(body.role as Role)) fields.role = "Please select a role.";
+      else data.role = body.role as Role;
+    }
+    if (body.isActive !== undefined) {
+      if (typeof body.isActive !== "boolean") fields.isActive = "isActive must be true or false.";
+      else data.isActive = body.isActive;
+    }
+    if (Object.keys(fields).length > 0) {
+      return res
+        .status(400)
+        .json({ error: { code: "VALIDATION_ERROR", message: "Please correct the highlighted fields.", fields } });
+    }
+
+    try {
+      const target = await prisma.user.findUnique({ where: { id: targetId } });
+      if (!target) {
+        return res.status(404).json({ error: { code: "NOT_FOUND", message: "User not found." } });
+      }
+
+      if (data.email && data.email !== target.email) {
+        const existing = await prisma.user.findUnique({ where: { email: data.email } });
+        if (existing) {
+          return res.status(409).json({ error: { code: "DUPLICATE_EMAIL", message: "This email is already in use." } });
+        }
+      }
+
+      const deactivatingTarget = data.isActive === false;
+      const roleChangeAwayFromAdmin = data.role !== undefined && data.role !== "ADMINISTRATOR" && target.role === "ADMINISTRATOR";
+
+      // BR-34: unconditional — blocked independent of whether any other active Administrator
+      // exists (specification.md §11). The caller is always an Administrator here (requireRole
+      // above), so "targeting the caller's own account" is the only condition that matters.
+      if (targetId === currentUser.id && (deactivatingTarget || roleChangeAwayFromAdmin)) {
+        return res.status(409).json({
+          error: { code: "SELF_DEACTIVATION_BLOCKED", message: "You cannot deactivate or change the role of your own account." },
+        });
+      }
+
+      // BR-35: kept as defense-in-depth against a concurrent-request race (two requests both
+      // passing this count before either commits), not because it's reachable in a single request —
+      // whenever targetId !== currentUser.id (the only way to reach this line, BR-34 above already
+      // returned for the self case), the caller is by definition a *second* active Administrator
+      // (requireAuth/requireRole both already enforced that), so activeAdminCount is always >= 2
+      // here and this branch can never actually fire through a live, single-request call. See
+      // docs/lab-03/tests.md §7 for the full reasoning.
+      if (target.role === "ADMINISTRATOR" && (deactivatingTarget || roleChangeAwayFromAdmin)) {
+        const activeAdminCount = await prisma.user.count({ where: { role: "ADMINISTRATOR", isActive: true } });
+        if (activeAdminCount <= 1) {
+          return res.status(409).json({
+            error: { code: "LAST_ADMINISTRATOR_PROTECTED", message: "At least one active Administrator must remain." },
+          });
+        }
+      }
+
+      const updated = await prisma.user.update({ where: { id: targetId }, data });
+      res.status(200).json(toSafeUser(updated));
+    } catch {
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to update the user." } });
+    }
+  }
+);
+
+app.post(
+  "/api/admin/users/:id/reset-password",
+  ...requireFullAuth,
+  requireRole("ADMINISTRATOR"),
+  async (req: Request, res: Response) => {
+    const prisma = getPrisma();
+    const targetId = parseRouteId(req.params.id);
+    const newInitialPassword = typeof req.body?.newInitialPassword === "string" ? req.body.newInitialPassword : "";
+
+    if (targetId === null) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "User not found." } });
+    }
+    if (newInitialPassword.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({
+        error: { code: "VALIDATION_ERROR", message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` },
+      });
+    }
+
+    try {
+      const target = await prisma.user.findUnique({ where: { id: targetId } });
+      if (!target) {
+        return res.status(404).json({ error: { code: "NOT_FOUND", message: "User not found." } });
+      }
+
+      // BR-33: forces mustChangePassword regardless of what it was before.
+      const passwordHash = await hashPassword(newInitialPassword);
+      const updated = await prisma.user.update({
+        where: { id: targetId },
+        data: { passwordHash, mustChangePassword: true },
+      });
+
+      res.status(200).json({ id: updated.id, mustChangePassword: updated.mustChangePassword });
+    } catch {
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to reset the password." } });
     }
   }
 );

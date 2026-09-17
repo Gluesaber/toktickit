@@ -78,13 +78,13 @@ added when 3-3 actually gates a route with it.
 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| API-12 | AC-03, AC-12, BR-03, BR-17 | `POST /api/tickets` with a forged `requesterId` in the body | Created ticket's `requesterId` is the session user's; forged value ignored | Pending |
-| API-13 | AC-13, BR-18 | `GET /api/tickets/:id` for a ticket owned by a different Requester | `404 NOT_FOUND` | Pending |
-| API-14 | AC-04, BR-29 | Requester calls `POST /api/staff/tickets/:id/notes` | `403 FORBIDDEN`, no note content in the response | Pending |
-| API-15 | AC-17, §5.1 | Requester calls `GET /api/staff/tickets` | `403 FORBIDDEN` | Pending |
-| API-16 | AC-31, §5.1 | Non-Administrator (both Requester and IT Staff) calls `GET /api/admin/users` | `403 FORBIDDEN` for both roles | Pending |
-| API-17 | AC-26, §11 | Administrator calls claim/priority/status/notes endpoints | Succeeds identically to IT Staff (parity) | Pending |
-| API-18 | BR-39 | A request includes a legacy `requesterId` query/body param | Ignored; identity still derived from the session | Pending |
+| API-12 | AC-03, AC-12, BR-03, BR-17 | `POST /api/tickets` with a forged `requesterId` in the body | Created ticket's `requesterId` is the session user's; forged value ignored | Pass |
+| API-13 | AC-13, BR-18 | `GET /api/tickets/:id` for a ticket owned by a different Requester | `404 NOT_FOUND` | Pass |
+| API-14 | AC-04, BR-29 | Requester calls `POST /api/staff/tickets/:id/notes` | `403 FORBIDDEN`, no note content in the response | Pass |
+| API-15 | AC-17, §5.1 | Requester calls `GET /api/staff/tickets` | `403 FORBIDDEN` | Pass |
+| API-16 | AC-31, §5.1 | Non-Administrator (both Requester and IT Staff) calls `GET /api/admin/users` | `403 FORBIDDEN` for both roles | Pass |
+| API-17 | AC-26, §11 | Administrator calls claim/priority/status/notes endpoints | Succeeds identically to IT Staff (parity) | Pass |
+| API-18 | BR-39 | A request includes a legacy `requesterId` query/body param | Ignored; identity still derived from the session | Pass |
 
 ### API — `server/tests/lab-03/requester-regression.api.test.ts` *(additional file, see §1)*
 
@@ -153,14 +153,14 @@ note).
 
 | Test ID | AC/BR | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| API-45 | AC-27, BR-31 | `POST /api/admin/users`, duplicate email (any case) | `409 DUPLICATE_EMAIL` | Pending |
-| API-46 | BR-30 | `POST /api/admin/users`, valid | `201`, `mustChangePassword: true` regardless of request body | Pending |
-| API-47 | AC-28, BR-33 | `POST .../reset-password`, then log in with the new password | `mustChangePassword: true`; login succeeds and routes to Change Password | Pending |
-| API-48 | AC-29, BR-34 | `PATCH` own account, `isActive: false` | `409 SELF_DEACTIVATION_BLOCKED` | Pending |
-| API-49 | AC-30, BR-35 | `PATCH` the last active Administrator, `isActive: false` or role change | `409 LAST_ADMINISTRATOR_PROTECTED` | Pending |
-| API-50 | AC-32 | `GET /api/admin/users?search=...` | Only matching name/email rows returned | Pending |
-| API-51 | AC-33 | `GET /api/admin/users?role=IT_STAFF` | Only that role returned | Pending |
-| API-52 | BR-32 | `PATCH` edits name/email/role/`isActive` | `passwordHash`/`mustChangePassword` unchanged by this endpoint | Pending |
+| API-45 | AC-27, BR-31 | `POST /api/admin/users`, duplicate email (any case) | `409 DUPLICATE_EMAIL` | Pass |
+| API-46 | BR-30 | `POST /api/admin/users`, valid | `201`, `mustChangePassword: true` regardless of request body | Pass |
+| API-47 | AC-28, BR-33 | `POST .../reset-password`, then log in with the new password | `mustChangePassword: true`; login succeeds and routes to Change Password | Pass |
+| API-48 | AC-29, BR-34 | `PATCH` own account, `isActive: false` | `409 SELF_DEACTIVATION_BLOCKED` | Pass |
+| API-49 | AC-30, BR-35 | `PATCH` targeting the last active Administrator | See §7 note: reachable only via the same self-targeting request API-48 already covers (BR-34 fires first); tested instead via (a) a fellow active Administrator can be deactivated when it would *not* leave zero active, and (b) the sole active Administrator's self-attempt is still blocked | Pass |
+| API-50 | AC-32 | `GET /api/admin/users?search=...` | Only matching name/email rows returned | Pass |
+| API-51 | AC-33 | `GET /api/admin/users?role=IT_STAFF` | Only that role returned | Pass |
+| API-52 | BR-32 | `PATCH` edits name/email/role/`isActive` | `passwordHash`/`mustChangePassword` unchanged by this endpoint | Pass |
 
 ### API — `server/tests/lab-03/migration.api.test.ts` *(additional file, see §1)*
 
@@ -229,12 +229,12 @@ rather than `LoginPage` alone, since the nav lives in `AppShell`. Both noted dir
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-22 | AC-27 | Mocked `DUPLICATE_EMAIL` response | Inline email-field error shown | Pending |
-| UI-23 | AC-29 | The logged-in Administrator's own row | Activation toggle rendered disabled with an explanatory tooltip | Pending |
-| UI-24 | AC-30 | The last active Administrator's row | Same disabled + tooltip treatment | Pending |
-| UI-25 | AC-32 | Typing in search | Triggers a re-fetch with the `search` param | Pending |
-| UI-26 | AC-33 | Selecting a role filter | Triggers a re-fetch with the `role` param | Pending |
-| UI-27 | — | "Set New Initial Password" action | Rendered as a separate control from the main Save action (BR-32) | Pending |
+| UI-22 | AC-27 | Mocked `DUPLICATE_EMAIL` response | Inline email-field error shown | Pass |
+| UI-23 | AC-29 | The logged-in Administrator's own row | Activation toggle rendered disabled with an explanatory tooltip | Pass |
+| UI-24 | AC-30 | The last active Administrator's row | Same disabled + tooltip treatment | Pass |
+| UI-25 | AC-32 | Typing in search | Triggers a re-fetch with the `search` param | Pass |
+| UI-26 | AC-33 | Selecting a role filter | Triggers a re-fetch with the `role` param | Pass |
+| UI-27 | — | "Set New Initial Password" action | Rendered as a separate control from the main Save action (BR-32) | Pass |
 
 ### Responsive/visual — `e2e/lab-03/visual-responsive.spec.ts` *(additional file, see §1)*
 
@@ -320,45 +320,44 @@ before a UI Issue is marked Done is a human look at the actual screenshots again
 ## 6. Final Results
 
 **In progress.** Updated after each landed Issue — following the same discipline `docs/lab-02/tests.md`
-§6 used — not reconstructed in one pass at the end. Current as of **Issue 3-5 (Staff Ticket
-Operations)**: migration, all `/api/staff/*` endpoints (plus `GET /api/staff/users`, the small
-unplanned addition — see api-spec.md §6), the widened Comments routes, the shared status-transition
-endpoint, the Staff Ticket Detail page, and every test row this issue plans are done and passing,
-verified both by the automated suites and a live manual walkthrough (claim, reassign, IT Priority
-edit, a confirmed and an unconfirmed status transition, an Internal Note post, round-tripped back
-through the Queue). Only the E2E rows (E2E-03/04) remain `Pending` — Playwright coverage is Issue
-3-7's job, same phased split Lab 2 used. Every other Issue's rows remain `Pending` until their own
-branch lands. A full staleness sweep (every `Pending`/`TODO` row reconciled against real, verified
-state) still happens as part of Issue 3-8, per the doc-finalization habit this project has already needed
-twice in Lab 2 — but that's a final audit, not the only time this table gets touched.
+§6 used — not reconstructed in one pass at the end. Current as of **Issue 3-6 (User Management)**: every
+Unit, API, UI component, and UI style row this file plans is now done and passing — the full
+`GET/POST/PATCH /api/admin/users*` family, the minimalist User Management screen, and (as a byproduct of
+3-6 finally supplying the one endpoint it was waiting on) `authorization.api.test.ts`'s remaining rows
+(API-12–18) are closed out too. Only Responsive (RESP-01–05) and E2E (E2E-01–07) remain `Pending` —
+both are Issue 3-7's job by design, same phased split Lab 2 used. A full staleness sweep (every
+`Pending`/`TODO` row reconciled against real, verified state) still happens as part of Issue 3-8, per the
+doc-finalization habit this project has already needed twice in Lab 2 — but that's a final audit, not the
+only time this table gets touched.
 
 The API "Planned" total dropped from 100's original 55 to 52 as of Issue 3-3, when API-25/26/27
 (Requester self-Cancel) were retired from this file's plan per the Cancel-scope decision (§2) rather than
-carried as permanently `Pending`. It's back up to 54 as of this issue: API-56/57 are Issue 3-5's own IDs
-for the Requester side of the transition matrix (§2's `requester-regression.api.test.ts` addendum),
-restoring rather than exceeding the original count since the staff side reused the already-planned
-API-34–44 rather than adding more. UI-06 (role-scoped nav), deferred at Issue 3-2 for lack of a second
-role-scoped screen to test against, completed at Issue 3-4.
+carried as permanently `Pending`. It went back up to 54 at Issue 3-5: API-56/57 are that issue's own IDs
+for the Requester side of the transition matrix. UI-06 (role-scoped nav), deferred at Issue 3-2 for lack
+of a second role-scoped screen to test against, completed at Issue 3-4.
 
 | Level | Planned (sprint total) | Actual so far | Passing | Failing | Deferred |
 |---|---|---|---|---|---|
 | Unit | 4 | 4 (UNIT-01–04) | 4 | 0 | 0 |
-| API | 54 | 39 (API-01–11, 19–24, 28–44, 53–57) | 39 | 0 | 0 |
-| UI component | 27 | 21 (UI-01–21) | 21 | 0 | 0 |
+| API | 54 | 54 (API-01–57, all IDs) | 54 | 0 | 0 |
+| UI component | 27 | 27 (UI-01–27, all IDs) | 27 | 0 | 0 |
 | UI style | 2 | 2 (STYLE-01, 02) | 2 | 0 | 0 |
 | Responsive | 5 | 0 | 0 | 0 | 0 |
 | E2E | 7 | 0 | 0 | 0 | 0 |
-| **Total** | **99** | **66** | **66** | **0** | **0** |
+| **Total** | **99** | **87** | **87** | **0** | **0** |
 
 "Actual so far" counts planned Test IDs with a real, verified implementation. The real `npm test` suites
-run more raw cases than that (157 server + 56 client `it()` blocks as of this issue, against 66 planned
+run more raw cases than that (188 server + 64 client `it()` blocks as of this issue, against 87 planned
 IDs combined) — extra edge cases like the missing-field/idempotent-logout/role-leak/parity checks don't
 map to a single planned ID each, same pattern Lab 2 saw (`docs/lab-02/tests.md` §6: actual execution
 count grew past the original per-ID estimate as real edge cases were found). Re-run repeatedly across
-Issues 3-2 through 3-5 — including after fixing four separate manual-testing data-pollution incidents
-(all caught by `API-54`; this issue's run caught two accounts polluted at once,
+Issues 3-2 through 3-6 — including after fixing five separate manual-testing data-pollution incidents
+(all caught by `API-54`; one run caught two accounts polluted at once,
 `alex.rivera@example.edu` and `priya.nair@example.edu`) and one test-isolation bug in Issue 3-4's own
-`staff-queue.api.test.ts` — with zero flakes since; see §7.
+`staff-queue.api.test.ts` — with zero flakes since; see §7. One planned error code,
+`LAST_ADMINISTRATOR_PROTECTED`, was found during this issue to be unreachable through any real
+authenticated request (defense-in-depth against a race condition only) — also documented in §7, and
+API-49's row above reflects what's actually tested instead of the originally-planned scenario.
 
 ## 7. Known Limitations or Deferred Tests
 
@@ -411,3 +410,26 @@ and are recorded now so they aren't mistaken for gaps later:
   reset-dev-accounts` script flagged as "worth building" after the third recurrence is now a real backlog
   item rather than a hypothetical — not built in this issue (out of its own scope), but should not keep
   being deferred past Issue 3-6 or 3-7.
+- **The incident recurred a fifth time, before Issue 3-6 started** — `alex.rivera@example.edu` again.
+  Restored the same way, then all 188 server tests reverified clean. This time the backlog item from the
+  note above was actually built: `server/prisma/resetDevAccounts.ts` (`npm run reset-dev-accounts`)
+  resets every account in `seed.ts`'s `USERS` list back to the documented dev password and
+  `mustChangePassword: true`, idempotently, without creating any row (that stays `prisma:seed`'s job) or
+  touching any `@example.test` fixture account (none of those are in `USERS`). The shared data
+  (`DEV_SEED_PASSWORD`/`USERS`) was pulled out into `server/prisma/seedData.ts` so importing it doesn't
+  also trigger `seed.ts`'s own module-level `main()` call as a side effect. Should this recur a sixth
+  time, the fix is now `npm run reset-dev-accounts`, not another disposable script.
+- **`LAST_ADMINISTRATOR_PROTECTED` (BR-35) is unreachable through any real authenticated request** —
+  found while writing API-49's test. `PATCH /api/admin/users/:id` requires the caller to be an active
+  Administrator (`requireAuth`/`requireRole`), so whenever caller != target there are always >= 2 active
+  Administrators at request time — deactivating the target can never actually reach zero. When caller ==
+  target, BR-34 fires first and unconditionally ("independent of the last-Administrator rule" —
+  specification.md §11), so self-deactivation never falls through to the BR-35 branch either. The check
+  in `app.ts` is kept as defense-in-depth against a theoretical concurrent-request race (two requests both
+  passing the count check before either commits), not because a single-request test can reach it — API-49
+  was rewritten to test the two behaviors that actually are reachable: a fellow active Administrator *can*
+  be deactivated when doing so wouldn't leave zero active (correct, not over-blocking), and the sole
+  active Administrator's own self-attempt is still blocked (via BR-34, `SELF_DEACTIVATION_BLOCKED`). Not a
+  defect — `LAST_ADMINISTRATOR_PROTECTED` genuinely can never appear in a response under this
+  authorization model, which is worth knowing rather than discovering via a confusing always-passing (or
+  always-failing) test later.
