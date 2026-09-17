@@ -88,6 +88,15 @@ never a real password and must never be reused for anything real.
 | drew.kowalski@example.edu | IT Staff | no |
 | jamie.whitfield@example.edu | Administrator | yes |
 
+If you've manually logged into one of these accounts to click through the app (rather than using a
+disposable `@example.test` account), its password/`mustChangePassword` state has changed and
+`migration.api.test.ts` will fail. Restore every seeded account to the table above with:
+
+```bash
+cd server
+npm run reset-dev-accounts
+```
+
 ## 5. Run the app
 
 In two separate terminals:

@@ -222,6 +222,28 @@ body {
   margin-top: 0.75rem;
 }
 
+/* User Management — Active/Inactive pill (ui-spec.md §8.1). Deliberately its own class, not
+   .zg-badge, so it can never be mistaken for a Ticket status even though this screen never shows
+   both together — "Status" here means account activation, not a Ticket's currentStatus. */
+.zg-status-pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.zg-status-pill-active {
+  background-color: var(--zg-pale);
+  color: var(--zg-primary);
+}
+
+.zg-status-pill-inactive {
+  background-color: var(--zg-field-readonly-bg);
+  color: var(--zg-text-muted);
+}
+
 /* Internal Notes card header — ui-spec.md §7.4. --zg-warning-bg so this card can never be visually
    mistaken for the Public Comments card next to it, whatever the specific caption text says. */
 .internal-notes-card-header {

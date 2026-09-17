@@ -440,6 +440,81 @@ export async function changeTicketStatus(ticketId: number, status: string): Prom
 }
 
 // ---------------------------------------------------------------------------
+// Issue 3-6 (Lab 3) — Administrator User Management. api-spec.md §8.
+// ---------------------------------------------------------------------------
+
+export interface AdminUser {
+  id: number;
+  name: string;
+  email: string;
+  role: Role;
+  isActive: boolean;
+}
+
+export interface AdminUserQuery {
+  search?: string;
+  role?: Role;
+}
+
+export async function getAdminUsers(query: AdminUserQuery = {}): Promise<AdminUser[]> {
+  const params = new URLSearchParams();
+  if (query.search) params.set("search", query.search);
+  if (query.role) params.set("role", query.role);
+
+  const res = await fetch(`${API_URL}/api/admin/users?${params.toString()}`, { credentials: "include" });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export interface CreateAdminUserInput {
+  name: string;
+  email: string;
+  role: Role;
+  isActive: boolean;
+  initialPassword: string;
+}
+
+export async function createAdminUser(input: CreateAdminUserInput): Promise<AdminUser> {
+  const res = await fetch(`${API_URL}/api/admin/users`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export interface EditAdminUserInput {
+  name?: string;
+  email?: string;
+  role?: Role;
+  isActive?: boolean;
+}
+
+export async function editAdminUser(id: number, input: EditAdminUserInput): Promise<AdminUser> {
+  const res = await fetch(`${API_URL}/api/admin/users/${id}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function resetUserPassword(id: number, newInitialPassword: string): Promise<{ id: number; mustChangePassword: boolean }> {
+  const res = await fetch(`${API_URL}/api/admin/users/${id}/reset-password`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ newInitialPassword }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
 // Issue 3-2 (Lab 3) — Authentication. api-spec.md §1.
 // `credentials: "include"` on every one of these: the session cookie (BR-09) needs to ride along
 // even though vite.config.ts's dev proxy already makes this same-origin in practice — explicit here

@@ -8,6 +8,7 @@ import CreateTicketPage from "./pages/CreateTicketPage.js";
 import TicketDetailPage from "./pages/TicketDetailPage.js";
 import StaffTicketQueuePage from "./pages/StaffTicketQueuePage.js";
 import StaffTicketDetailPage from "./pages/StaffTicketDetailPage.js";
+import UserManagementPage from "./pages/UserManagementPage.js";
 
 // Issue 3-2 (Lab 3) — outer authentication gate (BR-11, BR-13, AC-10):
 //   no session          -> Login
@@ -24,6 +25,10 @@ import StaffTicketDetailPage from "./pages/StaffTicketDetailPage.js";
 // Requester's /tickets/:id rather than one route branching by role internally — the two layouts
 // diverge enough (claim/reassign, IT Priority, staff status control, Internal Notes) that sharing a
 // route would mean branching most of the component body anyway.
+// Issue 3-6 (Lab 3) — adds /admin/users, Administrator-only: the "full IT Staff parity" decision
+// (specification.md §11) means Administrator gets everything IT Staff has (the /queue routes) *plus*
+// this extra one, not instead of it — so this is a third branch layered onto isStaff's routes, not a
+// fourth mutually-exclusive role bucket.
 function AuthGate() {
   const { status, user } = useAuth();
 
@@ -38,6 +43,7 @@ function AuthGate() {
   }
 
   const isStaff = user.role === "IT_STAFF" || user.role === "ADMINISTRATOR";
+  const isAdministrator = user.role === "ADMINISTRATOR";
 
   return (
     <Routes>
@@ -47,6 +53,7 @@ function AuthGate() {
             <Route path="/" element={<Navigate to="/queue" replace />} />
             <Route path="/queue" element={<StaffTicketQueuePage />} />
             <Route path="/queue/:id" element={<StaffTicketDetailPage />} />
+            {isAdministrator && <Route path="/admin/users" element={<UserManagementPage />} />}
             <Route path="*" element={<Navigate to="/queue" replace />} />
           </>
         ) : (
