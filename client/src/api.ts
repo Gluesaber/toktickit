@@ -342,6 +342,104 @@ export async function getStaffTickets(query: StaffTicketListQuery): Promise<Staf
 }
 
 // ---------------------------------------------------------------------------
+// Issue 3-5 (Lab 3) — Staff Ticket Detail: claim/reassign, IT Priority, status, Internal Notes.
+// api-spec.md §6.
+// ---------------------------------------------------------------------------
+
+export interface Note {
+  id: number;
+  author: { id: number; name: string; role: Role };
+  content: string;
+  createdAt: string;
+}
+
+export interface StaffTicketDetail {
+  id: number;
+  ticketNumber: string;
+  requester: Requester;
+  owner: { id: number; name: string; role: Role } | null;
+  category: Category;
+  relatedSystem: RelatedSystem;
+  summary: string;
+  description: string;
+  requestedPriority: Priority;
+  itPriority: Priority;
+  currentStatus: string;
+  requesterConfirmedResolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  attachments: Attachment[];
+  comments: Comment[];
+  notes: Note[];
+}
+
+// Not in api-spec.md's original planning draft — added to populate ui-spec.md §7.1's Reassign
+// picker (see server/src/app.ts's comment above GET /api/staff/users for why).
+export interface StaffUser {
+  id: number;
+  name: string;
+  role: Role;
+}
+
+export async function getStaffUsers(): Promise<StaffUser[]> {
+  const res = await fetch(`${API_URL}/api/staff/users`, { credentials: "include" });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function getStaffTicket(id: number): Promise<StaffTicketDetail> {
+  const res = await fetch(`${API_URL}/api/staff/tickets/${id}`, { credentials: "include" });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function setTicketOwner(ticketId: number, ownerId: number): Promise<{ id: number; owner: { id: number; name: string; role: Role } }> {
+  const res = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/owner`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ownerId }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function setItPriority(ticketId: number, itPriority: Priority): Promise<{ id: number; itPriority: Priority }> {
+  const res = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/priority`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ itPriority }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function postNote(ticketId: number, content: string): Promise<Note> {
+  const res = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/notes`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// Shared by the Requester's own Cancel action (TicketDetailPage) and every IT-Staff/Administrator
+// transition (StaffTicketDetailPage) — one endpoint, specification.md §11's Cancel-scope decision.
+export async function changeTicketStatus(ticketId: number, status: string): Promise<{ id: number; currentStatus: string; updatedAt: string }> {
+  const res = await fetch(`${API_URL}/api/tickets/${ticketId}/status`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
 // Issue 3-2 (Lab 3) — Authentication. api-spec.md §1.
 // `credentials: "include"` on every one of these: the session cookie (BR-09) needs to ride along
 // even though vite.config.ts's dev proxy already makes this same-origin in practice — explicit here

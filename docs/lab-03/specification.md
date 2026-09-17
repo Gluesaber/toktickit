@@ -316,6 +316,7 @@ Full detail lives in `api-spec.md`; summary of required endpoints:
 | `GET /api/tickets/:id/comments` | List Public Comments (Requester on own ticket; IT Staff/Administrator on any) |
 | `PATCH /api/tickets/:id/resolved-indication` | Requester sets `requesterConfirmedResolvedAt` on an owned ticket |
 | `PATCH /api/tickets/:id/status` | Requester (Cancel only, own ticket) or IT Staff/Administrator (per §5.2) |
+| `GET /api/staff/users` | **Issue 3-5 addition** (see api-spec.md §6) — active IT Staff/Administrator users, for the Reassign picker |
 | `GET /api/staff/tickets` | IT Staff/Administrator Ticket Queue — search/filter/sort/paginate |
 | `GET /api/staff/tickets/:id` | Staff-view Ticket Detail (includes Internal Notes) |
 | `PATCH /api/staff/tickets/:id/owner` | Claim or reassign ownership |

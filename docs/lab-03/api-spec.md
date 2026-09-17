@@ -188,6 +188,15 @@ Request: `{ "status": "CANCELLED" }`.
 
 All require role `IT_STAFF` or `ADMINISTRATOR` (§0, `specification.md` §11 parity decision).
 
+### `GET /api/staff/users`
+Purpose: **added in Issue 3-5**, beyond this file's original planning draft — `ui-spec.md` §7.1's
+Reassign control needs a list of active IT Staff/Administrator users to populate its `<select>`, and
+nothing else in this contract provides one (`GET /api/admin/users`, §8, is Administrator-only and
+doesn't exist until Issue 3-6). Scoped to exactly that lookup.
+Response `200`: `[{ id, name, role }]` — active users with role `IT_STAFF` or `ADMINISTRATOR` only,
+ordered by name. Never includes `email`, `isActive`, or any other field User Management (§8) will
+eventually expose.
+
 ### `GET /api/staff/tickets`
 Purpose: the Ticket Queue (FR-10, AC-16). Full query contract in §7.
 Response `200`: same envelope shape as Lab 2's `GET /api/tickets` (`{ data: [...], pagination: {...} }`),
