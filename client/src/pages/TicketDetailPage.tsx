@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ApiError, Comment, TicketDetail, getTicket, markProblemResolved } from "../api.js";
+import { ApiError, Comment, TicketDetail, changeTicketStatus, getTicket, markProblemResolved } from "../api.js";
 import { PriorityBadge, StatusBadge } from "../components/Badges.js";
 import AttachmentSection from "../components/AttachmentSection.js";
 import CommentsSection from "../components/CommentsSection.js";
@@ -10,8 +10,15 @@ import CommentsSection from "../components/CommentsSection.js";
 // Issue 2-7 (Lab 2) — the Attachment section is now the real add/download/remove UI.
 // Issue 3-3 (Lab 3) — identity comes from the session now, not a selected Requester (BR-03/BR-17);
 // adds Public Comments and "Problem Appears Resolved" (BR-04/BR-25, ui-spec.md §5).
+// Issue 3-7 (Lab 3) — adds the Requester's own Cancel action. This was a genuine gap: Issue 3-5
+// built the backend side of a Requester's self-Cancel (PATCH /api/tickets/:id/status, BR-24,
+// tested at server/tests/lab-03/requester-regression.api.test.ts's API-56/57) and api.ts's
+// changeTicketStatus already existed for the Staff detail page to reuse, but no Requester-facing
+// control was ever wired up — ui-spec.md §5 never mentions one either. Found while writing this
+// issue's E2E-07 spec, which needs exactly this action.
 type LoadState = "loading" | "ready" | "not-found" | "failure";
 const TERMINAL_STATUSES = ["RESOLVED", "CLOSED", "CANCELLED"];
+const CANCELLABLE_STATUSES = ["NEW", "OPEN"]; // BR-24
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString();
@@ -24,6 +31,9 @@ export default function TicketDetailPage() {
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
   const [resolvedBusy, setResolvedBusy] = useState(false);
   const [resolvedError, setResolvedError] = useState<string | null>(null);
+  const [cancelPending, setCancelPending] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   async function load() {
     if (!id) return;
@@ -61,6 +71,21 @@ export default function TicketDetailPage() {
       setResolvedError(err instanceof ApiError ? err.message : "Unable to update this ticket.");
     } finally {
       setResolvedBusy(false);
+    }
+  }
+
+  async function handleCancelTicket() {
+    if (!ticket) return;
+    setCancelBusy(true);
+    setCancelError(null);
+    try {
+      const result = await changeTicketStatus(ticket.id, "CANCELLED");
+      setTicket((prev) => (prev ? { ...prev, currentStatus: result.currentStatus } : prev));
+      setCancelPending(false);
+    } catch (err) {
+      setCancelError(err instanceof ApiError ? err.message : "Unable to cancel this ticket.");
+    } finally {
+      setCancelBusy(false);
     }
   }
 
@@ -112,9 +137,44 @@ export default function TicketDetailPage() {
       <div className="row g-3 mb-4">
         <div className="col-md-3">
           <label className="form-label fw-semibold">Current Status</label>
-          <div>
+          <div className="mb-1">
             <StatusBadge status={ticket.currentStatus} />
           </div>
+          {/* BR-24: Requester's only status power — Cancel, and only from New/Open. */}
+          {CANCELLABLE_STATUSES.includes(ticket.currentStatus) && (
+            <>
+              {cancelError && (
+                <div className="text-danger small mb-1" role="alert">
+                  {cancelError}
+                </div>
+              )}
+              {cancelPending ? (
+                <div className="d-flex gap-2 align-items-center">
+                  <span className="small">Cancel this ticket?</span>
+                  <button
+                    type="button"
+                    className={`btn btn-outline-danger btn-sm${cancelBusy ? " btn-busy" : ""}`}
+                    disabled={cancelBusy}
+                    onClick={handleCancelTicket}
+                  >
+                    {cancelBusy ? "Saving…" : "Confirm"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm"
+                    disabled={cancelBusy}
+                    onClick={() => setCancelPending(false)}
+                  >
+                    Keep Ticket
+                  </button>
+                </div>
+              ) : (
+                <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => setCancelPending(true)}>
+                  Cancel Ticket
+                </button>
+              )}
+            </>
+          )}
         </div>
         <div className="col-md-3">
           <label className="form-label fw-semibold">Requested Priority</label>

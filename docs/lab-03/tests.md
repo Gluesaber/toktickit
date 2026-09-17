@@ -204,6 +204,9 @@ rather than `LoginPage` alone, since the nav lives in `AppShell`. Both noted dir
 | UI-11 | AC-15 | Click "Mark Problem as Resolved" | Button replaced by a confirmation line; status badge unchanged | Pass |
 | UI-12 | BR-25 | Ticket already Resolved/Closed/Cancelled | Action button is not rendered | Pass |
 | UI-13 | AC-04 | Static check of this screen's own code path | No component or request on this screen can render Note data | Pass |
+| UI-28 | BR-24 *(new, Issue 3-7)* | Click "Cancel Ticket" then "Confirm" | `PATCH .../status` called with `CANCELLED`; status badge updates | Pass |
+| UI-29 | — *(new, Issue 3-7)* | Click "Cancel Ticket" then "Keep Ticket" | No API call made, confirm step dismissed | Pass |
+| UI-30 | BR-24 *(new, Issue 3-7)* | Ticket past New/Open | "Cancel Ticket" is not rendered | Pass |
 
 ### UI component — `client/tests/lab-03/StaffTicketQueue.test.tsx`
 
@@ -240,38 +243,38 @@ rather than `LoginPage` alone, since the nav lives in `AppShell`. Both noted dir
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| RESP-01 | AC-34 | Ticket Queue at 375px width | No horizontal scroll; card layout renders | Pending |
-| RESP-02 | AC-34 | User Management at 375px width | No horizontal scroll; card layout renders | Pending |
-| RESP-03 | — | Staff Ticket Detail at 820px (tablet) width | Two-column layout renders without clipping/overlap | Pending |
-| RESP-04 | AC-35 | Login, tab-only keyboard navigation | All controls reachable, visible focus ring | Pending |
-| RESP-05 | — | Screenshot capture across the 5 new/changed screens × 3 viewports | Produces the files listed in `ui-spec.md` §12 for Part 9 evidence | Pending |
+| RESP-01 | AC-34 | Ticket Queue at 375px width | No horizontal scroll; card layout renders | Pass |
+| RESP-02 | AC-34 | User Management at 375px width | No horizontal scroll; card layout renders | Pass |
+| RESP-03 | — | Staff Ticket Detail at 820px (tablet) width | Two-column layout renders without clipping/overlap | Pass |
+| RESP-04 | AC-35 | Login, tab-only keyboard navigation | All controls reachable, visible focus ring | Pass |
+| RESP-05 | — | Baseline screenshot capture (one clean shot per screen per viewport — Queue, User Management, Staff Ticket Detail × desktop/tablet/mobile) | 9 files under `artifacts/lab-03/screenshots/` | Pass — see §7: the full `ui-spec.md` §12 per-interaction-state matrix (~40 files) is Issue 3-8's job, same Issue-2-8-vs-2-9 split Lab 2 used |
 
 ### E2E — `e2e/lab-03/authentication.spec.ts`
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| E2E-01 | AC-01, AC-02, AC-06, AC-09, AC-10 | Full flow: login → mandatory Change Password → logout → direct access blocked after logout | Each step behaves per spec | Pending |
-| E2E-02 | AC-05 | Login attempt on a seeded inactive account | Distinct inactive-account message shown | Pending |
+| E2E-01 | AC-01, AC-02, AC-06, AC-09, AC-10 | Full flow: login → mandatory Change Password → logout → direct access blocked after logout | Each step behaves per spec | Pass |
+| E2E-02 | AC-05 | Login attempt on a seeded inactive account | Distinct inactive-account message shown | Pass |
 
 ### E2E — `e2e/lab-03/staff-ticket-flow.spec.ts`
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| E2E-03 | AC-16, AC-20, AC-23, AC-24 | Login as IT Staff → open Queue → claim a ticket → set IT Priority → post an Internal Note → change status | Each step succeeds and is reflected on reload | Pending |
-| E2E-04 | AC-26 | Login as Administrator → repeat the same claim/priority/status/note flow | Succeeds identically to IT Staff (full parity) | Pending |
+| E2E-03 | AC-16, AC-20, AC-23, AC-24 | Login as IT Staff → open Queue → claim a ticket → set IT Priority → post an Internal Note → change status | Each step succeeds and is reflected on reload | Pass |
+| E2E-04 | AC-26 | Login as Administrator → repeat the same claim/priority/status/note flow | Succeeds identically to IT Staff (full parity) | Pass |
 
 ### E2E — `e2e/lab-03/user-administration.spec.ts`
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| E2E-05 | AC-27, AC-28 | Login as Administrator → create a user → reset that user's password → log in as that user | Routed to the mandatory Change Password screen | Pending |
-| E2E-06 | AC-29, AC-30 | Attempt self-deactivation, then attempt to deactivate the last active Administrator | Both blocked with a visible message | Pending |
+| E2E-05 | AC-27, AC-28 | Login as Administrator → create a user → reset that user's password → log in as that user | Routed to the mandatory Change Password screen | Pass |
+| E2E-06 | AC-29, AC-30 | Self-deactivation attempt on the logged-in Administrator's own row | Blocked: Activation toggle disabled with an explanatory tooltip | Pass — see §7 (same as API-49): a *different*-caller "deactivate the last Administrator" scenario is unreachable live, so this is what AC-30 actually reduces to in practice |
 
 ### E2E — `e2e/lab-03/requester-regression.spec.ts` *(additional file, see §1)*
 
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| E2E-07 | AC-11, AC-12, AC-14, AC-15, AC-25 | Login as Requester → create a ticket → post a Public Comment → mark Problem Appears Resolved → cancel a different New ticket | Each step succeeds; My Tickets shows only this Requester's tickets throughout | Pending |
+| E2E-07 | AC-11, AC-12, AC-14, AC-15, AC-25 | Login as Requester → create a ticket → post a Public Comment → mark Problem Appears Resolved → cancel a different New ticket | Each step succeeds; My Tickets shows only this Requester's tickets throughout | Pass |
 
 ## 3. Acceptance-Criterion Traceability
 
@@ -313,51 +316,48 @@ before a UI Issue is marked Done is a human look at the actual screenshots again
 |---|---|
 | `cd server && npm test` | All Vitest/Supertest suites, including `server/tests/lab-03/*.api.test.ts` and the Lab 3 unit tests |
 | `cd client && npm test` | All Vitest/Testing-Library suites, including `client/tests/lab-03/*.test.tsx` |
-| `npx playwright test` (from repo root) | `e2e/lab-03/*.spec.ts` — `playwright.config.ts` already scopes `testDir` to `e2e/` |
+| `npx playwright test e2e/lab-03` (from repo root) | `e2e/lab-03/*.spec.ts`. Backend must already be running (`cd server && npm run dev`) — `playwright.config.ts`'s `webServer` only auto-starts the Vite client. Scoped to `e2e/lab-03` deliberately: unscoped `npx playwright test` also picks up `e2e/lab-02`, whose specs are now obsolete — see §7 |
 | `cd server && npm run prisma:migrate && npm run prisma:seed` | Applies the Lab 3 migration (`Requester` → `User`, new columns/models) and (re-)seeds Users/Tickets/Comments/Notes before any of the above |
 | `cd server && npm run dev` (must already be running before `npx playwright test`) | The backend — same limitation as Lab 2 (`docs/lab-02/tests.md` §5): Playwright's `webServer` config only auto-starts the Vite client |
 
 ## 6. Final Results
 
-**In progress.** Updated after each landed Issue — following the same discipline `docs/lab-02/tests.md`
-§6 used — not reconstructed in one pass at the end. Current as of **Issue 3-6 (User Management)**: every
-Unit, API, UI component, and UI style row this file plans is now done and passing — the full
-`GET/POST/PATCH /api/admin/users*` family, the minimalist User Management screen, and (as a byproduct of
-3-6 finally supplying the one endpoint it was waiting on) `authorization.api.test.ts`'s remaining rows
-(API-12–18) are closed out too. Only Responsive (RESP-01–05) and E2E (E2E-01–07) remain `Pending` —
-both are Issue 3-7's job by design, same phased split Lab 2 used. A full staleness sweep (every
-`Pending`/`TODO` row reconciled against real, verified state) still happens as part of Issue 3-8, per the
-doc-finalization habit this project has already needed twice in Lab 2 — but that's a final audit, not the
-only time this table gets touched.
+**Complete.** Updated after each landed Issue — following the same discipline `docs/lab-02/tests.md` §6
+used — not reconstructed in one pass at the end. As of **Issue 3-7 (Responsive & E2E verification)**,
+every single row this file plans, across every level, is `Pass`. The 7 `e2e/lab-03/*.spec.ts` files
+(authentication, staff-ticket-flow, user-administration, requester-regression, visual-responsive) run
+against the real app and real backend, confirmed stable across repeated runs. A full staleness sweep
+(reconciling every row against real, verified state one more time) still happens as part of Issue 3-8 per
+the doc-finalization habit this project has already needed twice in Lab 2 — that's a final audit, not the
+only time this table gets touched, and this issue's own numbers below were produced the same
+implement-then-verify way every prior issue's were.
 
-The API "Planned" total dropped from 100's original 55 to 52 as of Issue 3-3, when API-25/26/27
-(Requester self-Cancel) were retired from this file's plan per the Cancel-scope decision (§2) rather than
-carried as permanently `Pending`. It went back up to 54 at Issue 3-5: API-56/57 are that issue's own IDs
-for the Requester side of the transition matrix. UI-06 (role-scoped nav), deferred at Issue 3-2 for lack
-of a second role-scoped screen to test against, completed at Issue 3-4.
+The API "Planned" total dropped from 100's original 55 to 52 as of Issue 3-3 (API-25/26/27 retired),
+then back up to 54 at Issue 3-5 (API-56/57, the Requester side of the transition matrix). The UI component
+total similarly grew from 27 to 30 at this issue: UI-28–30 are Issue 3-7's own IDs for the Requester
+Cancel Ticket control — a real gap this issue found (see §7) and fixed, not originally planned. UI-06
+(role-scoped nav), deferred at Issue 3-2, completed at Issue 3-4.
 
 | Level | Planned (sprint total) | Actual so far | Passing | Failing | Deferred |
 |---|---|---|---|---|---|
 | Unit | 4 | 4 (UNIT-01–04) | 4 | 0 | 0 |
 | API | 54 | 54 (API-01–57, all IDs) | 54 | 0 | 0 |
-| UI component | 27 | 27 (UI-01–27, all IDs) | 27 | 0 | 0 |
+| UI component | 30 | 30 (UI-01–30, all IDs) | 30 | 0 | 0 |
 | UI style | 2 | 2 (STYLE-01, 02) | 2 | 0 | 0 |
-| Responsive | 5 | 0 | 0 | 0 | 0 |
-| E2E | 7 | 0 | 0 | 0 | 0 |
-| **Total** | **99** | **87** | **87** | **0** | **0** |
+| Responsive | 5 | 5 (RESP-01–05) | 5 | 0 | 0 |
+| E2E | 7 | 7 (E2E-01–07) | 7 | 0 | 0 |
+| **Total** | **102** | **102** | **102** | **0** | **0** |
 
-"Actual so far" counts planned Test IDs with a real, verified implementation. The real `npm test` suites
-run more raw cases than that (188 server + 64 client `it()` blocks as of this issue, against 87 planned
-IDs combined) — extra edge cases like the missing-field/idempotent-logout/role-leak/parity checks don't
-map to a single planned ID each, same pattern Lab 2 saw (`docs/lab-02/tests.md` §6: actual execution
-count grew past the original per-ID estimate as real edge cases were found). Re-run repeatedly across
-Issues 3-2 through 3-6 — including after fixing five separate manual-testing data-pollution incidents
-(all caught by `API-54`; one run caught two accounts polluted at once,
-`alex.rivera@example.edu` and `priya.nair@example.edu`) and one test-isolation bug in Issue 3-4's own
-`staff-queue.api.test.ts` — with zero flakes since; see §7. One planned error code,
-`LAST_ADMINISTRATOR_PROTECTED`, was found during this issue to be unreachable through any real
-authenticated request (defense-in-depth against a race condition only) — also documented in §7, and
-API-49's row above reflects what's actually tested instead of the originally-planned scenario.
+"Actual so far" counts planned Test IDs with a real, verified implementation. The real `npm test` +
+`npx playwright test e2e/lab-03` suites run more raw cases than that (188 server + 67 client `it()` blocks
++ 17 Playwright tests, against 102 planned IDs combined) — extra edge cases don't map to a single planned
+ID each, same pattern Lab 2 saw (`docs/lab-02/tests.md` §6). Re-run repeatedly across Issues 3-2 through
+3-7 — including after fixing five separate manual-testing data-pollution incidents (all caught by
+`API-54`) and one test-isolation bug in Issue 3-4's own `staff-queue.api.test.ts` — with zero flakes
+since; see §7. Two planned things turned out different from plan during this issue specifically, both
+documented in §7 rather than silently patched: `LAST_ADMINISTRATOR_PROTECTED` is unreachable through any
+real request (found in Issue 3-6, restated here since E2E-06 hit the same wall), and the Requester's own
+Cancel Ticket control didn't exist in the frontend at all until this issue built it.
 
 ## 7. Known Limitations or Deferred Tests
 
@@ -432,4 +432,32 @@ and are recorded now so they aren't mistaken for gaps later:
   active Administrator's own self-attempt is still blocked (via BR-34, `SELF_DEACTIVATION_BLOCKED`). Not a
   defect — `LAST_ADMINISTRATOR_PROTECTED` genuinely can never appear in a response under this
   authorization model, which is worth knowing rather than discovering via a confusing always-passing (or
-  always-failing) test later.
+  always-failing) test later. E2E-06 hit the identical wall while writing its own scenario, for the exact
+  same reason — confirmed rather than re-litigated.
+- **The Requester's own Cancel action had no frontend control at all, until this issue.** Issue 3-5 built
+  the backend side of BR-24/AC-25 (`PATCH /api/tickets/:id/status`, tested at
+  `requester-regression.api.test.ts`'s API-56/57) and `api.ts`'s `changeTicketStatus` already existed for
+  the Staff detail page to call — but nothing on `TicketDetailPage.tsx` ever called it, and `ui-spec.md`
+  §5 never mentioned a Cancel control either. Found while writing this issue's E2E-07 spec, which needs
+  exactly this action to exist. Fixed: a "Cancel Ticket" button (visible only from New/Open, per BR-24)
+  with the same inline-confirm pattern `StaffTicketDetailPage.tsx`'s status control already uses, plus
+  new component tests (UI-28–30) and `ui-spec.md` §5.3. A good example of why an E2E spec is worth writing
+  even when every layer below it already has its own passing tests — the layers can each be individually
+  correct and the feature still not exist end-to-end.
+- **`e2e/lab-02/*.spec.ts` are now obsolete, not broken by this issue.** Confirmed via `git log`:
+  `GET /api/requesters` was removed in Issue 3-3 (commit `334558e`), well before this session, as part of
+  deleting the Development Requester Selector entirely (BR-39). Lab 2's own E2E specs still drive that
+  removed flow (`localStorage`-based Requester selection, `GET /api/requesters` for fixture setup) and now
+  fail with a JSON-parse error against the 404 HTML page. Not a regression to fix — Lab 2 is already closed
+  out and graded, and `e2e/lab-03/requester-regression.spec.ts` (E2E-07) now covers equivalent Requester
+  ground through the real session-auth flow that replaced it. Documented here, and `tests.md` §5's command
+  updated to scope explicitly to `e2e/lab-03`, so an unscoped `npx playwright test` run doesn't produce a
+  false "something's broken" signal.
+- **`.btn-zg-primary` had no visible keyboard-focus indicator at all** — found while writing RESP-04
+  (AC-35). Bootstrap's base `.btn` class zeroes the native outline on focus and normally replaces it with
+  a `box-shadow` keyed to a `--bs-btn-focus-shadow-rgb` custom property that variant classes like
+  `.btn-primary` set — but `.btn-zg-primary` was written from scratch (`client/src/styles/zen-green.css`,
+  since Lab 2) and never set that property or any focus style of its own, so keyboard focus on every
+  primary button in the app (Login's "Log In" included) was completely invisible, not just subtle. A real,
+  if small, accessibility gap that predates this issue — fixed with an explicit
+  `.btn-zg-primary:focus-visible` rule rather than weakening RESP-04's check to pass around it.

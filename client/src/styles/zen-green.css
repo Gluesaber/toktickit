@@ -53,6 +53,16 @@ body {
   color: #ffffff;
 }
 
+/* Issue 3-7 (Lab 3) — found while writing RESP-04 (AC-35, "visible focus indicator" on Login):
+   this class never set its own focus ring, and Bootstrap's base .btn resets the native outline to
+   0, so keyboard focus on a primary button was completely invisible. A real, if small, gap —
+   fixed here rather than weakening the E2E check. */
+.btn-zg-primary:focus-visible {
+  outline: 2px solid var(--zg-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 0.2rem rgba(0, 107, 60, 0.35);
+}
+
 .btn-zg-primary:disabled {
   background-color: var(--zg-primary);
   border-color: var(--zg-primary);
