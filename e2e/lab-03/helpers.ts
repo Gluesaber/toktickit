@@ -6,9 +6,15 @@ import { request as pwRequest, APIRequestContext } from "@playwright/test";
 // docs/lab-03/tests.md §7 has hit five times on this shared, never-reset dev DB. These helpers create
 // disposable `@example.test` users through the real Administrator API instead, the same technique
 // server/tests/lab-03/*.api.test.ts already uses for its own fixtures.
-
+//
+// Bootstrap identity: `e2e-bootstrap-admin@example.edu` (seedData.ts), NOT jamie.whitfield. An
+// earlier version of this file used jamie's real account to bootstrap everything else — since this
+// runs an API-level login+change-password on every single spec, it was silently resetting jamie's
+// password back to the shared default every time the suite ran, undoing whatever password a human
+// had set for themselves through the real UI. The bootstrap identity should never be an account a
+// person might also be using.
 export const DEV_SEED_PASSWORD = "ChangeMe123!";
-const SEED_ADMIN_EMAIL = "jamie.whitfield@example.edu";
+const SEED_ADMIN_EMAIL = "e2e-bootstrap-admin@example.edu";
 
 export type Role = "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
 
@@ -19,11 +25,10 @@ export interface CreatedUser {
   role: Role;
 }
 
-// A pure API session (never the browser) logged in as the one seeded Administrator, used only to
-// bootstrap disposable fixture users via POST /api/admin/users — never to test anything itself.
-// If jamie's `mustChangePassword` happens to be true (fresh seed, or a prior E2E run didn't get to
-// clean up), this clears it by resetting the password to the *same* documented value via a plain API
-// call — never the browser UI, so jamie's documented credentials are unchanged either way.
+// A pure API session (never the browser) logged in as the dedicated bootstrap Administrator, used
+// only to create disposable fixture users via POST /api/admin/users — never to test anything itself.
+// If its `mustChangePassword` happens to be true (fresh seed), this clears it by resetting the
+// password to the *same* documented value via a plain API call.
 export async function bootstrapAdminContext(): Promise<APIRequestContext> {
   const ctx = await pwRequest.newContext({ baseURL: "http://localhost:5173" });
   const loginRes = await ctx.post("/api/auth/login", {

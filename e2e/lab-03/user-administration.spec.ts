@@ -37,11 +37,13 @@ test.describe("Administrator User Management", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0);
 
     // Find it, reset its password (AC-28, BR-33: a distinct action from the main Save). The search
-    // is debounced (300ms) — wait for the filtered row to actually appear before clicking Edit, or
-    // a click can land on whatever stale row was still showing from the unfiltered list.
+    // is debounced (300ms) — a plain `.first()` click on "Edit" can still race the debounce and hit
+    // whichever row happened to be first before filtering settled (review feedback on PR #45), so
+    // scope the click to the row that actually contains this email instead of relying on timing.
     await page.getByLabel(/^search/i).fill(newUserEmail);
-    await expect(page.getByRole("cell", { name: newUserEmail })).toBeVisible();
-    await page.getByRole("button", { name: "Edit" }).first().click();
+    const createdUserRow = page.getByRole("row").filter({ hasText: newUserEmail });
+    await expect(createdUserRow).toBeVisible();
+    await createdUserRow.getByRole("button", { name: "Edit" }).click();
     await page.getByRole("button", { name: "Set New Initial Password" }).click();
     await page.getByLabel(/new initial password/i).fill("ResetPass123!");
     await page.getByRole("button", { name: "Set Password" }).click();
@@ -83,8 +85,9 @@ test.describe("Administrator User Management", () => {
     await page.getByRole("link", { name: "User Management" }).click();
 
     await page.getByLabel(/^search/i).fill(admin.email);
-    await expect(page.getByRole("cell", { name: admin.email })).toBeVisible();
-    await page.getByRole("button", { name: "Edit" }).first().click();
+    const selfRow = page.getByRole("row").filter({ hasText: admin.email });
+    await expect(selfRow).toBeVisible();
+    await selfRow.getByRole("button", { name: "Edit" }).click();
 
     const activeToggle = page.getByLabel(/^active$/i);
     await expect(activeToggle).toBeDisabled();

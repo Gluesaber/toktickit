@@ -461,3 +461,12 @@ and are recorded now so they aren't mistaken for gaps later:
   primary button in the app (Login's "Log In" included) was completely invisible, not just subtle. A real,
   if small, accessibility gap that predates this issue — fixed with an explicit
   `.btn-zg-primary:focus-visible` rule rather than weakening RESP-04's check to pass around it.
+- **PR #45 review caught a real flaky race in `user-administration.spec.ts`** — the original fix for the
+  debounced-search race (wait for the filtered cell to appear, then `.first().click()` on Edit) narrowed
+  the race window but didn't close it: in the reviewer's environment it still landed on the wrong row 2 of
+  17 runs. Replaced with row-scoped locators — `page.getByRole("row").filter({ hasText: email })
+  .getByRole("button", { name: "Edit" })` — which click the Edit button *inside* the matched row directly,
+  removing the race entirely rather than just shrinking it. Confirmed stable across 5 repeated local runs
+  after the fix, plus a full 17/17 `e2e/lab-03` re-run. Worth remembering for any future Playwright
+  work in this repo: "wait for the thing to appear, then click a `.first()`/`.last()` locator" is weaker
+  than scoping the click to a container that's guaranteed to hold the right element.
