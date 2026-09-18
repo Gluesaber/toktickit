@@ -34,4 +34,12 @@ export const USERS: SeedUser[] = [
   { name: "Riley Osei", email: "riley.osei@example.edu", role: "IT_STAFF", isActive: true },
   { name: "Drew Kowalski", email: "drew.kowalski@example.edu", role: "IT_STAFF", isActive: false },
   { name: "Jamie Whitfield", email: "jamie.whitfield@example.edu", role: "ADMINISTRATOR", isActive: true },
+  // Issue 3-7 fix — a dedicated, permanent Administrator that exists purely so automated tooling
+  // (e2e/lab-03/helpers.ts's bootstrapAdminContext) has an account to log into without ever touching
+  // jamie.whitfield's real password/mustChangePassword state. Before this, every E2E run silently
+  // logged into jamie's account via the API and reset her password back to the shared default
+  // whenever mustChangePassword was true — invisible to the browser, but it kept undoing whatever
+  // password a human had manually set for themselves, every time a new issue's E2E suite ran. Never
+  // meant for manual demo/grading use (not listed in README's seeded-accounts table) — scripts only.
+  { name: "E2E Bootstrap Admin", email: "e2e-bootstrap-admin@example.edu", role: "ADMINISTRATOR", isActive: true },
 ];

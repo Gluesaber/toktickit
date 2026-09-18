@@ -97,6 +97,12 @@ cd server
 npm run reset-dev-accounts
 ```
 
+One additional seeded account, `e2e-bootstrap-admin@example.edu` (Administrator), isn't listed above
+on purpose — `e2e/lab-03/helpers.ts` uses it to create other test fixtures via the API and nothing
+else should ever log into it manually. Its whole point is that `npm run reset-dev-accounts` and
+`npx playwright test` can touch it freely without ever resetting an account a person is using for
+demos.
+
 ## 5. Run the app
 
 In two separate terminals:

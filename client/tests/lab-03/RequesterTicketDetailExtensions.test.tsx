@@ -125,6 +125,47 @@ describe("TicketDetailPage — Problem Appears Resolved (Issue 3-3, BR-25)", () 
   });
 });
 
+// Not a labsheet-planned test ID — Issue 3-7 found that the Requester's own Cancel action
+// (BR-24, backed by PATCH /api/tickets/:id/status since Issue 3-5) never had a frontend control at
+// all. Added here alongside the fix, same as this project's convention for other spec-gap additions.
+describe("TicketDetailPage — Requester self-Cancel (Issue 3-7, BR-24)", () => {
+  it("cancels a New ticket after the inline confirm step, updating the status badge", async () => {
+    vi.spyOn(api, "getTicket").mockResolvedValue(makeTicketDetail({ currentStatus: "NEW" }));
+    vi.spyOn(api, "changeTicketStatus").mockResolvedValue({ id: 1, currentStatus: "CANCELLED", updatedAt: "2026-09-17T00:00:00.000Z" });
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("TK-2026-000001");
+    await user.click(screen.getByRole("button", { name: /^cancel ticket$/i }));
+    expect(screen.getByText(/cancel this ticket\?/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^confirm$/i }));
+    expect(await screen.findByText("Cancelled", { selector: ".zg-badge-status-cancelled" })).toBeInTheDocument();
+  });
+
+  it("backing out of the confirm step makes no API call", async () => {
+    vi.spyOn(api, "getTicket").mockResolvedValue(makeTicketDetail({ currentStatus: "OPEN" }));
+    const changeSpy = vi.spyOn(api, "changeTicketStatus");
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("TK-2026-000001");
+    await user.click(screen.getByRole("button", { name: /^cancel ticket$/i }));
+    await user.click(screen.getByRole("button", { name: /keep ticket/i }));
+
+    expect(screen.queryByText(/cancel this ticket\?/i)).not.toBeInTheDocument();
+    expect(changeSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not render the Cancel action once the ticket is past New/Open", async () => {
+    vi.spyOn(api, "getTicket").mockResolvedValue(makeTicketDetail({ currentStatus: "IN_PROGRESS" }));
+    renderPage();
+
+    await screen.findByText("TK-2026-000001");
+    expect(screen.queryByRole("button", { name: /^cancel ticket$/i })).not.toBeInTheDocument();
+  });
+});
+
 // UI-13 (AC-04) — static check: no component or request on this screen can render Note data.
 // TicketDetailPage never imports anything Note-related, and its only data source is
 // getTicket()'s response shape, which (per api-spec.md §2) never includes a `notes` field for the

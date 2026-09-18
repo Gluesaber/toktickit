@@ -144,6 +144,20 @@ Internal Notes are never rendered anywhere on this screen — there is no code p
 Detail view that can request Note data, matching BR-29/AC-04 at the UI layer (defense in depth on top of
 the backend's own rejection).
 
+### 5.3 Cancel Ticket action — **Issue 3-7 addition, missing from this section's original draft**
+
+Found while writing Issue 3-7's E2E-07 spec: BR-24/AC-25 give the Requester a self-Cancel action, and
+Issue 3-5 already built its backend (`PATCH /api/tickets/:id/status`), but this section never specified a
+control for it and none existed until now. Placed next to the Current Status badge in the header block
+(not a new card, since it's a single small action, not a whole new section):
+
+- A secondary-style "Cancel Ticket" button, visible only while Current Status is New or Open (BR-24) —
+  the same rule the backend enforces, so the button never offers an action the API would reject.
+- Clicking it shows a brief inline confirmation ("Cancel this ticket? Confirm / Keep Ticket") before
+  submitting, the same pattern §7.3 already established for the Staff Ticket Detail status control, since
+  Cancel is equally hard to walk back.
+- On success, the Current Status badge updates immediately, no page reload.
+
 ## 6. IT Staff Ticket Queue Screen
 
 ### 6.1 Layout
