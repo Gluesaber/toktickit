@@ -7,6 +7,7 @@ and must be moved to `Pass`/`Fail`/`Deferred` as each Issue actually lands — *
 finished code afterward**, and not left stale: per the Lab 2 retrospective
 (`docs/lab-02/specification.md`'s own process notes), a doc-finalization sweep at the end of the sprint
 must reconcile every row here against real, verified state before Issue 3-8 (Final Doc) is marked done.
+That sweep was done in Issue 3-8: no row in this file is still `Pending` (see §6).
 
 ## 1. Test Strategy
 
@@ -223,7 +224,7 @@ rather than `LoginPage` alone, since the nav lives in `AppShell`. Both noted dir
 | Test ID | AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
 | UI-18 | AC-20 | Claim button on an unassigned ticket | Calls `PATCH .../owner`; row updates to show the caller as owner | Pass |
-| UI-19 | AC-22 | Status-change control | Only offers options valid from the current status (`ui-spec.md` §7.3) | Pass |
+| UI-19 | AC-22 | Status-change control | Only offers options valid from the current status (`ui-spec.md` §7.3). Checked for all 8 statuses against `specification.md` §5.2 (extended from a 2-status spot check in Issue 3-8) | Pass |
 | UI-20 | AC-22 | A mocked `409 TRANSITION_NOT_PERMITTED` response | Safe failure message shown, status unchanged in the UI | Pass |
 | UI-21 | — | Internal Notes card vs. Public Comments card | Rendered with visually distinct CSS classes (`ui-spec.md` §7.4) | Pass |
 | STYLE-02 | — | IT Priority editable control vs. Requested Priority read-only badge | Distinguishable classes, matching the editable/read-only rule | Pass |
@@ -349,8 +350,8 @@ Cancel Ticket control — a real gap this issue found (see §7) and fixed, not o
 | **Total** | **102** | **102** | **102** | **0** | **0** |
 
 "Actual so far" counts planned Test IDs with a real, verified implementation. The real `npm test` +
-`npx playwright test e2e/lab-03` suites run more raw cases than that (188 server + 67 client `it()` blocks
-+ 17 Playwright tests, against 102 planned IDs combined) — extra edge cases don't map to a single planned
+`npx playwright test e2e/lab-03` suites run more raw cases than that (188 server + 75 client `it()` blocks
++ 23 Playwright tests, against 102 planned IDs combined) — extra edge cases don't map to a single planned
 ID each, same pattern Lab 2 saw (`docs/lab-02/tests.md` §6). Re-run repeatedly across Issues 3-2 through
 3-7 — including after fixing five separate manual-testing data-pollution incidents (all caught by
 `API-54`) and one test-isolation bug in Issue 3-4's own `staff-queue.api.test.ts` — with zero flakes
@@ -470,3 +471,11 @@ and are recorded now so they aren't mistaken for gaps later:
   after the fix, plus a full 17/17 `e2e/lab-03` re-run. Worth remembering for any future Playwright
   work in this repo: "wait for the thing to appear, then click a `.first()`/`.last()` locator" is weaker
   than scoping the click to a container that's guaranteed to hold the right element.
+- **Issue 3-8 doc sweep found two coverage gaps behind `ui-spec.md` §11 ticks, and closed both.**
+  (1) UI-19 only spot-checked two of the eight statuses; it now checks all eight against `specification.md`
+  §5.2, using a matrix transcribed independently of the component (client suite 67 to 75 `it()` blocks).
+  (2) "No horizontal scrolling on any of the five new/changed screens" was automated for only three of the
+  five (RESP-01/02/03). `visual-responsive.spec.ts` now also asserts no overflow on Login and on Change
+  Password at desktop, tablet and mobile widths (Playwright suite 17 to 23 tests), using a freshly created
+  user still on the initial password. Both passed without any app change, so this closed evidence gaps
+  rather than fixing bugs. Every §11 item is now ticked, each with the test that backs it.

@@ -1,5 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
-import { bootstrapAdminContext, createReadyUser, createReadyRequesterWithTicket } from "./helpers.js";
+import { bootstrapAdminContext, createReadyUser, createReadyRequesterWithTicket, createUser } from "./helpers.js";
 
 // Issue 3-7 (Lab 3) — RESP-01..05. docs/lab-03/tests.md §2/§4, ui-spec.md §9/§11/§12.
 //
@@ -46,15 +46,20 @@ async function openNavIfCollapsed(page: Page) {
 
 let admin: Awaited<ReturnType<typeof createReadyUser>>;
 let ticketNumber: string;
+// Still on its initial password (mustChangePassword: true), so logging in lands on Change Password.
+// Only ever logged into, never submitted, so it stays in that state for all three viewport tests.
+let gatedUser: Awaited<ReturnType<typeof createUser>>;
 
 test.beforeAll(async () => {
   const adminContext = await bootstrapAdminContext();
-  const [readyAdmin, requesterFixture] = await Promise.all([
+  const [readyAdmin, requesterFixture, gated] = await Promise.all([
     createReadyUser(adminContext, { name: "E2E Responsive Admin", role: "ADMINISTRATOR", emailPrefix: "e2e-responsive-admin" }),
     createReadyRequesterWithTicket(adminContext, "e2e-responsive-requester"),
+    createUser(adminContext, { name: "E2E Responsive Gated", role: "REQUESTER", emailPrefix: "e2e-responsive-gated" }),
   ]);
   admin = readyAdmin;
   ticketNumber = requesterFixture.ticketNumber;
+  gatedUser = gated;
   await adminContext.dispose();
 });
 
@@ -82,6 +87,23 @@ test("Login is fully keyboard-operable with a visible focus indicator (RESP-04)"
 for (const [viewportName, viewportSize] of Object.entries(VIEWPORTS)) {
   test.describe(`${viewportName} (${viewportSize.width}x${viewportSize.height})`, () => {
     test.use({ viewport: viewportSize });
+
+    // ui-spec.md §11 / §9: no horizontal scroll on any of the five new/changed screens. RESP-01/02/03
+    // cover Queue, User Management and Staff Ticket Detail; these two cover Login and Change Password.
+    test("Login — no horizontal scroll", async ({ page }) => {
+      await page.goto("/");
+      await expect(page.getByRole("button", { name: "Log In" })).toBeVisible();
+      await assertNoHorizontalOverflow(page);
+    });
+
+    test("Change Password — no horizontal scroll", async ({ page }) => {
+      await page.goto("/");
+      await page.getByLabel("Email").fill(gatedUser.email);
+      await page.getByLabel("Password").fill(gatedUser.initialPassword);
+      await page.getByRole("button", { name: "Log In" }).click();
+      await expect(page.getByRole("button", { name: "Set Password" })).toBeVisible();
+      await assertNoHorizontalOverflow(page);
+    });
 
     // RESP-01 (AC-34)
     test("Ticket Queue — no horizontal scroll, card layout on mobile", async ({ page }) => {

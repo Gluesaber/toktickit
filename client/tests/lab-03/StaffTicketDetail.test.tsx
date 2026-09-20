@@ -104,6 +104,41 @@ describe("StaffTicketDetailPage", () => {
     expect(optionValues).not.toContain("OPEN");
   });
 
+  // ui-spec.md §11: "verified against specification.md §5.2, not just spot-checked". The matrix below
+  // is transcribed from §5.2's staff rows independently of the component's own STAFF_TRANSITIONS
+  // table, so a wrong or missing row in the component is caught rather than mirrored.
+  const SPEC_STAFF_TRANSITIONS: Record<string, string[]> = {
+    NEW: ["OPEN", "CANCELLED"],
+    OPEN: ["IN_PROGRESS", "RESOLVED", "CANCELLED"],
+    IN_PROGRESS: ["WAITING_FOR_REQUESTER", "RESOLVED", "CANCELLED"],
+    WAITING_FOR_REQUESTER: ["IN_PROGRESS", "RESOLVED", "CANCELLED"],
+    RESOLVED: ["CLOSED", "REOPENED"],
+    CLOSED: ["REOPENED"],
+    CANCELLED: [],
+    REOPENED: ["IN_PROGRESS"],
+  };
+
+  it.each(Object.entries(SPEC_STAFF_TRANSITIONS))(
+    "offers exactly the §5.2 transitions from %s",
+    async (from, expected) => {
+      vi.spyOn(api, "getStaffTicket").mockResolvedValue(makeDetail({ currentStatus: from }));
+      renderPage();
+
+      if (expected.length === 0) {
+        // Cancelled is terminal: no control at all, just the explanatory line.
+        expect(await screen.findByText(/no further status changes are available/i)).toBeInTheDocument();
+        expect(screen.queryByLabelText(/change status/i)).not.toBeInTheDocument();
+        return;
+      }
+
+      const select = await screen.findByLabelText(/change status/i);
+      const offered = Array.from(select.querySelectorAll("option"))
+        .map((o) => o.getAttribute("value"))
+        .filter((v): v is string => !!v);
+      expect(offered.sort()).toEqual([...expected].sort());
+    }
+  );
+
   // UI-20 (AC-22)
   it("shows a safe failure message and leaves the status unchanged on a 409 TRANSITION_NOT_PERMITTED", async () => {
     vi.spyOn(api, "getStaffTicket").mockResolvedValue(makeDetail({ currentStatus: "NEW" }));
