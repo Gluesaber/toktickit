@@ -2,7 +2,7 @@
 
 TokTickIT is an IT service desk application (Account & Access, Hardware, Software, and Network requests), built incrementally across the CPE 334 individual sprints.
 
-**Stack:** React (Vite + TypeScript + Bootstrap) → Express (TypeScript) REST API → Prisma ORM → PostgreSQL. Sprint 2 adds Multer for file-upload handling and the full Requester ticketing workflow (Create Ticket, My Tickets, Ticket Detail, Attachment lifecycle).
+**Stack:** React (Vite + TypeScript + Bootstrap) → Express (TypeScript) REST API → Prisma ORM → PostgreSQL. Sprint 2 adds Multer for file-upload handling and the full Requester ticketing workflow (Create Ticket, My Tickets, Ticket Detail, Attachment lifecycle). Sprint 3 adds session-cookie authentication, three roles (Requester, IT Staff, Administrator), the IT Staff Ticket Queue and ticket operations, and Administrator User Management.
 
 ## Prerequisites
 
@@ -41,8 +41,8 @@ copy client\.env.example client\.env
 copy server\.env.example server\.env
 ```
 
-- `client/.env` → `VITE_API_URL` should point at the backend (default `http://localhost:3000`).
-- `server/.env` → `DATABASE_URL` should point at your PostgreSQL instance, and `PORT` is the port the API listens on (default `3000`).
+- `client/.env` → leave `VITE_API_URL` empty. The Vite dev server proxies `/api` to the backend on the same origin, which the session cookie needs.
+- `server/.env` → `DATABASE_URL` should point at your PostgreSQL instance, `PORT` is the port the API listens on (default `3000`), and `SESSION_SECRET` signs the session cookie. Any long random dev-only string works, and the server refuses to start without it.
 
 Never commit your real `.env` files — only `.env.example` is tracked in git.
 
@@ -119,11 +119,20 @@ npm run dev      # http://localhost:5173
 
 Open `http://localhost:5173` in a browser. You will land on the **Login** screen — sign in with any
 seeded account above (§4a) and its shared initial password. On first login you'll be required to set a
-new password before continuing (mandatory first-login password change). Once in, Requester accounts can
-create tickets, browse their ticket list with search/filter/sort/pagination, view ticket detail, manage
-attachments (upload, download, soft-remove), post Public Comments, and indicate a problem appears
-resolved. The Development Requester Selector from Lab 2 no longer exists — ticket ownership now comes
-entirely from the authenticated session.
+new password before continuing (mandatory first-login password change). What you can do depends on the role:
+
+- **Requester** — create tickets, browse your own ticket list with search/filter/sort/pagination, view
+  ticket detail, manage attachments (upload, download, soft-remove), post Public Comments, indicate a
+  problem appears resolved, and cancel a ticket that is still New or Open.
+- **IT Staff** — work the shared Ticket Queue (search/filter/sort/pagination across every Requester),
+  open any ticket, claim or reassign ownership, set IT Priority, change status along the permitted
+  transitions, and post Public Comments and Internal Notes (Internal Notes are never visible to Requesters).
+- **Administrator** — everything IT Staff can do, plus User Management: list/search/filter users, create
+  a user, edit name/email/role/active state, and set a new initial password for a user.
+
+There is no self-service "forgot password": an Administrator resets it from User Management. The Development
+Requester Selector from Lab 2 no longer exists — ticket ownership now comes entirely from the
+authenticated session.
 
 ## 6. Run tests
 
@@ -147,13 +156,20 @@ To run the suite, the dev Postgres container must be running/seeded (steps 3–4
 must already be started (`cd server && npm run dev`) — Playwright only auto-starts the Vite client:
 
 ```bash
-npx playwright test
+npx playwright test e2e/lab-03
 ```
 
-This runs `e2e/lab-02/requester-ticket-flow.spec.ts` (one connected Requester journey: select →
-create ticket with an attachment → find it in My Tickets → view its detail → download/soft-remove the
-attachment) and `e2e/lab-02/visual-responsive.spec.ts` (desktop/tablet/mobile screenshots + layout
-checks for all three screens, saved to `artifacts/lab-02/screenshots/`).
+This runs `e2e/lab-03/` (23 tests): authentication (login, mandatory password change, logout, inactive
+account), staff ticket operations (IT Staff and Administrator), user administration, a Requester
+regression journey, and `visual-responsive.spec.ts` (keyboard navigation plus desktop/tablet/mobile layout
+checks, with baseline screenshots saved to `artifacts/lab-03/screenshots/`).
+
+The specs create their own disposable `@example.test` users through the Administrator API, using the
+`e2e-bootstrap-admin@example.edu` account described above, so they never log into or change any of the
+demo accounts in §4a.
+
+Run it scoped to `e2e/lab-03`, as shown. `e2e/lab-02` is obsolete: its specs drive the Development
+Requester Selector, which Lab 3 removed, so they no longer pass.
 
 ## Project structure
 
@@ -162,22 +178,30 @@ toktickit/
 ├── client/                    # React + TypeScript + Vite + Bootstrap frontend
 │   └── tests/
 │       ├── lab-01/            # Vitest UI tests (Lab 1)
-│       └── lab-02/            # Vitest UI tests (Lab 2)
+│       ├── lab-02/            # Vitest UI tests (Lab 2)
+│       └── lab-03/            # Vitest UI tests (Lab 3)
 ├── server/                    # Node.js + Express + TypeScript backend
-│   ├── prisma/                # Prisma schema, migrations, seed script
+│   ├── prisma/                # Prisma schema, migrations, seed + reset-dev-accounts scripts
 │   └── tests/
 │       ├── lab-01/            # Supertest API tests (Lab 1)
-│       └── lab-02/            # Supertest API tests (Lab 2)
+│       ├── lab-02/            # Supertest API tests (Lab 2)
+│       └── lab-03/            # Supertest API + unit tests (Lab 3)
 ├── e2e/
-│   └── lab-02/                # Playwright end-to-end tests
+│   ├── lab-02/                # Playwright end-to-end tests (obsolete — see §6)
+│   └── lab-03/                # Playwright end-to-end tests (Lab 3)
 ├── docs/
 │   ├── lab-01/                # Lab 1 documentation
-│   └── lab-02/                # Lab 2 documentation
+│   ├── lab-02/                # Lab 2 documentation
+│   └── lab-03/                # Lab 3 documentation
 ├── artifacts/
-│   └── lab-02/screenshots/    # Playwright-captured viewport screenshots (desktop/tablet/mobile)
-│       ├── create-ticket/
-│       ├── my-tickets/
-│       └── ticket-detail/
+│   ├── lab-02/screenshots/    # Playwright-captured viewport screenshots (desktop/tablet/mobile)
+│   │   ├── create-ticket/
+│   │   ├── my-tickets/
+│   │   └── ticket-detail/
+│   └── lab-03/screenshots/    # Playwright-captured baseline screenshots (desktop/tablet/mobile)
+│       ├── staff-queue/
+│       ├── staff-ticket-detail/
+│       └── user-management/
 ├── .gitignore
 └── README.md
 ```

@@ -285,23 +285,39 @@ desktop/tablet/mobile before marking a Lab 3 UI Issue done — mirrors the check
 in `docs/lab-02/ui-spec.md` §9 (each item backed by an automated test or a direct manual verification
 pass, not a glance):
 
-- [ ] All 8 status badges and all 3 role badges match §1.2/§1.3 exactly, reusing `zen-green.css` tokens —
-      no ad-hoc colors introduced anywhere in Lab 3 screens
-- [ ] Navigation never renders a destination a role cannot use (§2) — confirmed for all three roles, not
-      just visually hidden but actually unreachable by direct URL
-- [ ] Login's generic-invalid vs. inactive-account messages are visibly distinct in copy while identically
-      positioned (§3)
-- [ ] The Change Password gate cannot be bypassed by direct navigation while `mustChangePassword` is true
-- [ ] Public Comments and Internal Notes cards are unmistakably distinct at a glance (§7.4) — not just on
-      close reading
-- [ ] IT Priority's editable control and Requested Priority's read-only badge are visually distinguishable
-      per the existing editable/read-only rule (§7.2, reusing `docs/lab-02/ui-spec.md` §1.3)
-- [ ] The Status-change control on IT Staff Ticket Detail only ever offers transitions valid from the
-      current status (§7.3) — verified against `specification.md` §5.2, not just spot-checked
-- [ ] User Management's self-deactivation and last-Administrator protections are visible as disabled
-      controls with explanatory tooltips, not just server-side 409s with no UI cue (§8.2)
-- [ ] No horizontal scrolling at mobile width on any of the five new/changed screens (§9)
-- [ ] Desktop table vs. mobile card behavior both remain fully usable on Ticket Queue and User Management
+Signed off in Issue 3-8 against the test evidence in `tests.md`. Each tick names what backs it.
+
+- [x] All 8 status badges and all 3 role badges match §1.2/§1.3 exactly, reusing `zen-green.css` tokens —
+      no ad-hoc colors introduced anywhere in Lab 3 screens. *STYLE-01; every badge color is a §1
+      token or one of the hex pairs §1.2 itself sanctions (`#FDE6D8`/`#9A3412`, `#D9EDE1`). The
+      Active/Inactive pill (§8.1) and the Internal Notes header (§7.4) use existing tokens only. The
+      `.btn-zg-primary:focus-visible` ring (Issue 3-7) is `--zg-primary` at 35% alpha.*
+- [x] Navigation never renders a destination a role cannot use (§2) — confirmed for all three roles, not
+      just visually hidden but actually unreachable by direct URL. *UI-06 (all three roles' nav). Direct-URL
+      redirects were checked live in the browser: Requester to `/queue`, IT Staff to `/admin/users`. Routes
+      a role can't reach are never mounted (`App.tsx`).*
+- [x] Login's generic-invalid vs. inactive-account messages are visibly distinct in copy while identically
+      positioned (§3). *UI-01, UI-03, E2E-02. Both render through the same `formError` alert.*
+- [x] The Change Password gate cannot be bypassed by direct navigation while `mustChangePassword` is true.
+      *E2E-01 navigates to `/tickets` mid-gate and is still held on Change Password.*
+- [x] Public Comments and Internal Notes cards are unmistakably distinct at a glance (§7.4) — not just on
+      close reading. *UI-21 asserts the distinct class and caption. Checked visually in the browser
+      during Issue 3-5: yellow header plus the "Internal — IT Staff/Administrator only" caption.*
+- [x] IT Priority's editable control and Requested Priority's read-only badge are visually distinguishable
+      per the existing editable/read-only rule (§7.2, reusing `docs/lab-02/ui-spec.md` §1.3). *STYLE-02.*
+- [x] The Status-change control on IT Staff Ticket Detail only ever offers transitions valid from the
+      current status (§7.3) — verified against `specification.md` §5.2, not just spot-checked. *UI-19 now
+      checks all 8 statuses against a §5.2 matrix transcribed independently of the component. Added in
+      Issue 3-8: it previously spot-checked only New and In Progress.*
+- [x] User Management's self-deactivation and last-Administrator protections are visible as disabled
+      controls with explanatory tooltips, not just server-side 409s with no UI cue (§8.2). *UI-23, UI-24,
+      E2E-06.*
+- [x] No horizontal scrolling at mobile width on any of the five new/changed screens (§9). *RESP-01/02/03
+      cover Ticket Queue, User Management and Staff Ticket Detail; Login and Change Password got their own
+      overflow checks in Issue 3-8. All five are asserted at desktop, tablet and mobile widths.*
+- [x] Desktop table vs. mobile card behavior both remain fully usable on Ticket Queue and User Management.
+      *RESP-01/02: the table is visible on desktop and tablet, hidden on mobile, where the card list
+      renders instead.*
 
 ## 12. Screenshot Plan
 
