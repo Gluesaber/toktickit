@@ -18,6 +18,14 @@
   --zg-warning: #8a5a00;
   --zg-warning-bg: #fff3cd;
   --zg-success-text: #0b7a46;
+
+  /* Issue 3-2 (Lab 3) — docs/lab-03/ui-spec.md §1.1. Two new tokens: role badges (below) need a
+     third distinct color beyond the pale/warning pair already in use, and the full 8-status badge
+     set (added when Issue 3-4/3-5 need OPEN/WAITING_FOR_REQUESTER/etc.) reuses the same two. */
+  --zg-info-bg: #e3f1fb;
+  --zg-info-text: #1b4c73;
+  --zg-neutral-bg: #e7eae8;
+  --zg-neutral-text: #5b6b63;
 }
 
 body {
@@ -43,6 +51,16 @@ body {
   background-color: var(--zg-secondary);
   border-color: var(--zg-secondary);
   color: #ffffff;
+}
+
+/* Issue 3-7 (Lab 3) — found while writing RESP-04 (AC-35, "visible focus indicator" on Login):
+   this class never set its own focus ring, and Bootstrap's base .btn resets the native outline to
+   0, so keyboard focus on a primary button was completely invisible. A real, if small, gap —
+   fixed here rather than weakening the E2E check. */
+.btn-zg-primary:focus-visible {
+  outline: 2px solid var(--zg-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 0.2rem rgba(0, 107, 60, 0.35);
 }
 
 .btn-zg-primary:disabled {
@@ -141,9 +159,65 @@ body {
   color: var(--zg-primary);
 }
 
+/* Issue 3-4 (Lab 3) — the remaining 7 statuses, per docs/lab-03/ui-spec.md §1.2 (documented back in
+   Issue 3-2 but left unimplemented until now — the Queue is the first screen that actually needs to
+   tell more than one status apart at a glance). */
+.zg-badge-status-open {
+  background-color: var(--zg-info-bg);
+  color: var(--zg-info-text);
+}
+
+.zg-badge-status-in_progress {
+  background-color: #d9ede1;
+  color: var(--zg-secondary);
+}
+
+.zg-badge-status-waiting_for_requester {
+  background-color: var(--zg-warning-bg);
+  color: var(--zg-warning);
+}
+
+.zg-badge-status-resolved {
+  background-color: var(--zg-pale);
+  color: var(--zg-secondary);
+}
+
+.zg-badge-status-closed {
+  background-color: var(--zg-neutral-bg);
+  color: var(--zg-neutral-text);
+}
+
+.zg-badge-status-reopened {
+  background-color: #fde6d8;
+  color: #9a3412;
+}
+
+.zg-badge-status-cancelled {
+  background-color: var(--zg-error-bg);
+  color: var(--zg-error);
+}
+
+/* Fallback only — every real status above has its own class; this exists purely so an unrecognized
+   value fails safe instead of rendering unstyled. */
 .zg-badge-status-other {
   background-color: var(--zg-field-readonly-bg);
   color: var(--zg-text-muted);
+}
+
+/* Role badges — Issue 3-2 (Lab 3), docs/lab-03/ui-spec.md §1.3. */
+.zg-badge-role-requester {
+  background-color: var(--zg-pale);
+  color: var(--zg-primary);
+}
+
+.zg-badge-role-it_staff {
+  background-color: var(--zg-info-bg);
+  color: var(--zg-info-text);
+}
+
+.zg-badge-role-administrator {
+  background-color: var(--zg-warning-bg);
+  color: var(--zg-warning);
 }
 
 /* My Tickets — mobile card list, shown instead of the table below md (ui-spec.md §5.1). */
@@ -156,4 +230,35 @@ body {
 
 .ticket-card + .ticket-card {
   margin-top: 0.75rem;
+}
+
+/* User Management — Active/Inactive pill (ui-spec.md §8.1). Deliberately its own class, not
+   .zg-badge, so it can never be mistaken for a Ticket status even though this screen never shows
+   both together — "Status" here means account activation, not a Ticket's currentStatus. */
+.zg-status-pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.zg-status-pill-active {
+  background-color: var(--zg-pale);
+  color: var(--zg-primary);
+}
+
+.zg-status-pill-inactive {
+  background-color: var(--zg-field-readonly-bg);
+  color: var(--zg-text-muted);
+}
+
+/* Internal Notes card header — ui-spec.md §7.4. --zg-warning-bg so this card can never be visually
+   mistaken for the Public Comments card next to it, whatever the specific caption text says. */
+.internal-notes-card-header {
+  background-color: var(--zg-warning-bg);
+  color: var(--zg-warning);
+  display: flex;
+  align-items: center;
 }

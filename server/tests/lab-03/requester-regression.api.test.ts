@@ -1,0 +1,229 @@
+import { describe, it, expect, beforeAll } from "vitest";
+import request from "supertest";
+import { app } from "../../src/app.js";
+import { getPrisma } from "../../src/prisma.js";
+import { hashPassword } from "../../src/auth.js";
+
+// docs/lab-03/tests.md — server/tests/lab-03/requester-regression.api.test.ts.
+// API-25/26/27 (Requester self-Cancel) were retired here per specification.md §11's "Cancel scope"
+// decision (confirmed with the user ahead of implementation: Issue #33's own text never mentions
+// status/cancel at all) rather than carried forward as Pending. Issue 3-5 implements the shared
+// PATCH /api/tickets/:id/status endpoint and adds its own IDs for the Requester side below
+// (API-56/57) — new IDs, not a revival of the retired ones, per docs/lab-03/tests.md §6's note.
+
+const FIXTURE_PASSWORD = "a-real-test-password-1";
+let agent: ReturnType<typeof request.agent>;
+let otherAgent: ReturnType<typeof request.agent>;
+let ticketId: number;
+let categoryId: number;
+let relatedSystemId: number;
+
+async function createTicketFor(caller: ReturnType<typeof request.agent>, overrides: Record<string, unknown> = {}) {
+  const res = await caller.post("/api/tickets").send({
+    categoryId,
+    relatedSystemId,
+    summary: "Fixture ticket for Requester regression tests",
+    description: "Fixture ticket description for Requester regression tests, long enough to pass.",
+    requestedPriority: "LOW",
+    ...overrides,
+  });
+  return res.body as { id: number; currentStatus: string };
+}
+
+beforeAll(async () => {
+  const prisma = getPrisma();
+  const unique = Date.now();
+  const passwordHash = await hashPassword(FIXTURE_PASSWORD);
+
+  const [requester, other] = await Promise.all([
+    prisma.user.create({
+      data: { name: "Regression Test Requester", email: `regression-${unique}@example.test`, role: "REQUESTER", passwordHash, isActive: true, mustChangePassword: false },
+    }),
+    prisma.user.create({
+      data: { name: "Regression Test Other", email: `regression-other-${unique}@example.test`, role: "REQUESTER", passwordHash, isActive: true, mustChangePassword: false },
+    }),
+  ]);
+
+  agent = request.agent(app);
+  otherAgent = request.agent(app);
+  await Promise.all([
+    agent.post("/api/auth/login").send({ email: requester.email, password: FIXTURE_PASSWORD }),
+    otherAgent.post("/api/auth/login").send({ email: other.email, password: FIXTURE_PASSWORD }),
+  ]);
+
+  const category = await prisma.category.findFirstOrThrow({ where: { isActive: true } });
+  const relatedSystem = await prisma.relatedSystem.findFirstOrThrow({ where: { isActive: true } });
+  categoryId = category.id;
+  relatedSystemId = relatedSystem.id;
+  const createRes = await agent.post("/api/tickets").send({
+    categoryId,
+    relatedSystemId,
+    summary: "Fixture ticket for Requester regression tests",
+    description: "Fixture ticket description for Requester regression tests, long enough to pass.",
+    requestedPriority: "MEDIUM",
+  });
+  ticketId = createRes.body.id;
+});
+
+// API-19 (AC-11) — already covered thoroughly by my-tickets.api.test.ts's ownership-scoping
+// describe block; kept here as one direct assertion for traceability to this specific AC.
+describe("GET /api/tickets — session-derived scoping (API-19, AC-11)", () => {
+  it("returns only the authenticated Requester's own tickets, with no requesterId param needed", async () => {
+    const res = await agent.get("/api/tickets");
+    expect(res.status).toBe(200);
+    expect(res.body.data.some((t: { id: number }) => t.id === ticketId)).toBe(true);
+  });
+});
+
+// API-21/22 (AC-14, BR-26–BR-28)
+describe("POST /api/tickets/:id/comments", () => {
+  it("API-21: posts a valid comment with author/createdAt backend-assigned", async () => {
+    const res = await agent.post(`/api/tickets/${ticketId}/comments`).send({ content: "Still happening today." });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ content: "Still happening today." });
+    expect(res.body.author).toMatchObject({ role: "REQUESTER" });
+    expect(res.body.createdAt).toBeDefined();
+  });
+
+  it("API-22: rejects blank/whitespace-only content", async () => {
+    const res = await agent.post(`/api/tickets/${ticketId}/comments`).send({ content: "   " });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("ignores a forged author/createdAt in the body", async () => {
+    const res = await agent
+      .post(`/api/tickets/${ticketId}/comments`)
+      .send({ content: "Legit comment.", author: { id: 999999, name: "Forged" }, createdAt: "2000-01-01T00:00:00.000Z" });
+    expect(res.status).toBe(201);
+    expect(res.body.author.id).not.toBe(999999);
+    expect(res.body.createdAt).not.toBe("2000-01-01T00:00:00.000Z");
+  });
+
+  it("rejects a non-owning Requester with 404, not 403", async () => {
+    const res = await otherAgent.post(`/api/tickets/${ticketId}/comments`).send({ content: "Trying to peek." });
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects an unauthenticated request", async () => {
+    const res = await request(app).post(`/api/tickets/${ticketId}/comments`).send({ content: "No session." });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("GET /api/tickets/:id/comments", () => {
+  it("lists comments oldest-first for the owning Requester", async () => {
+    const res = await agent.get(`/api/tickets/${ticketId}/comments`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThanOrEqual(2); // the two posted above
+    const timestamps = res.body.map((c: { createdAt: string }) => new Date(c.createdAt).getTime());
+    expect([...timestamps].sort((a, b) => a - b)).toEqual(timestamps);
+  });
+
+  it("rejects a non-owning Requester with 404", async () => {
+    const res = await otherAgent.get(`/api/tickets/${ticketId}/comments`);
+    expect(res.status).toBe(404);
+  });
+});
+
+// API-23/24 (AC-15, BR-25)
+describe("PATCH /api/tickets/:id/resolved-indication", () => {
+  it("API-23: sets requesterConfirmedResolvedAt without touching currentStatus", async () => {
+    const res = await agent.patch(`/api/tickets/${ticketId}/resolved-indication`);
+    expect(res.status).toBe(200);
+    expect(res.body.requesterConfirmedResolvedAt).not.toBeNull();
+
+    const detail = await agent.get(`/api/tickets/${ticketId}`);
+    expect(detail.body.currentStatus).toBe("NEW");
+    expect(detail.body.requesterConfirmedResolvedAt).not.toBeNull();
+  });
+
+  // BR-25 blocks this while the ticket is already Resolved/Closed/Cancelled. Nothing in Issue 3-3
+  // can actually drive a ticket to one of those statuses yet (the status-transition endpoint is
+  // Issue 3-5's job) — forced directly via Prisma here so this rule is proven now rather than left
+  // untested until 3-5 lands.
+  it("API-24: rejects with 409 TICKET_ALREADY_TERMINAL once the ticket is Resolved", async () => {
+    const prisma = getPrisma();
+    const category = await prisma.category.findFirstOrThrow({ where: { isActive: true } });
+    const relatedSystem = await prisma.relatedSystem.findFirstOrThrow({ where: { isActive: true } });
+    const createRes = await agent.post("/api/tickets").send({
+      categoryId: category.id,
+      relatedSystemId: relatedSystem.id,
+      summary: "Fixture ticket forced to Resolved for API-24",
+      description: "Fixture ticket description, long enough to pass validation for this test.",
+      requestedPriority: "LOW",
+    });
+    await prisma.ticket.update({ where: { id: createRes.body.id }, data: { currentStatus: "RESOLVED" } });
+
+    const res = await agent.patch(`/api/tickets/${createRes.body.id}/resolved-indication`);
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("TICKET_ALREADY_TERMINAL");
+  });
+
+  it("rejects a non-owning Requester with 404", async () => {
+    const res = await otherAgent.patch(`/api/tickets/${ticketId}/resolved-indication`);
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects an unauthenticated request", async () => {
+    const res = await request(app).patch(`/api/tickets/${ticketId}/resolved-indication`);
+    expect(res.status).toBe(401);
+  });
+});
+
+// API-56 (AC-25, BR-24) — the Requester side of the shared PATCH /api/tickets/:id/status endpoint
+// (Issue 3-5). The IT-Staff side of the same endpoint, and the full transition matrix, are covered
+// in staff-ticket-detail.api.test.ts (API-38/39) — kept here instead of there because this is
+// Requester-specific behavior, matching every other assertion in this file.
+describe("PATCH /api/tickets/:id/status — Requester self-Cancel (API-56, AC-25, BR-24)", () => {
+  it("cancels an own ticket from New", async () => {
+    const ticket = await createTicketFor(agent);
+    const res = await agent.patch(`/api/tickets/${ticket.id}/status`).send({ status: "CANCELLED" });
+    expect(res.status).toBe(200);
+    expect(res.body.currentStatus).toBe("CANCELLED");
+  });
+
+  it("cancels an own ticket from Open", async () => {
+    const prisma = getPrisma();
+    const ticket = await createTicketFor(agent);
+    await prisma.ticket.update({ where: { id: ticket.id }, data: { currentStatus: "OPEN" } });
+
+    const res = await agent.patch(`/api/tickets/${ticket.id}/status`).send({ status: "CANCELLED" });
+    expect(res.status).toBe(200);
+    expect(res.body.currentStatus).toBe("CANCELLED");
+  });
+});
+
+// API-57 (BR-24) — BR-24's other two restrictions: no Cancel once past New/Open, and no target other
+// than Cancelled, ever, for a Requester.
+describe("PATCH /api/tickets/:id/status — Requester restrictions (API-57, BR-24)", () => {
+  it("rejects Cancel once the ticket is past New/Open", async () => {
+    const prisma = getPrisma();
+    const ticket = await createTicketFor(agent);
+    await prisma.ticket.update({ where: { id: ticket.id }, data: { currentStatus: "RESOLVED" } });
+
+    const res = await agent.patch(`/api/tickets/${ticket.id}/status`).send({ status: "CANCELLED" });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("TRANSITION_NOT_PERMITTED");
+  });
+
+  it("rejects any target other than Cancelled, even one a staff member could make", async () => {
+    const ticket = await createTicketFor(agent);
+    const res = await agent.patch(`/api/tickets/${ticket.id}/status`).send({ status: "OPEN" });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("TRANSITION_NOT_PERMITTED");
+  });
+
+  it("rejects a non-owning Requester with 404, not 403", async () => {
+    const ticket = await createTicketFor(agent);
+    const res = await otherAgent.patch(`/api/tickets/${ticket.id}/status`).send({ status: "CANCELLED" });
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects an unauthenticated request", async () => {
+    const ticket = await createTicketFor(agent);
+    const res = await request(app).patch(`/api/tickets/${ticket.id}/status`).send({ status: "CANCELLED" });
+    expect(res.status).toBe(401);
+  });
+});

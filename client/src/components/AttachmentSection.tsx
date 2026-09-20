@@ -6,7 +6,6 @@ import { validateAttachmentFile } from "../attachmentValidation.js";
 // soft-remove with an optional reason. docs/lab-02/ui-spec.md §6.2.
 interface Props {
   ticketId: number;
-  requesterId: number;
   attachments: Attachment[];
   onRefresh: () => Promise<void>;
 }
@@ -15,7 +14,7 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024).toFixed(0)} KB`;
 }
 
-export default function AttachmentSection({ ticketId, requesterId, attachments, onRefresh }: Props) {
+export default function AttachmentSection({ ticketId, attachments, onRefresh }: Props) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<number | null>(null);
@@ -38,7 +37,7 @@ export default function AttachmentSection({ ticketId, requesterId, attachments, 
     setUploadError(null);
     setUploading(true);
     try {
-      await uploadAttachment(ticketId, requesterId, file);
+      await uploadAttachment(ticketId, file);
       await onRefresh();
     } catch (err) {
       setUploadError(err instanceof ApiError ? err.message : "Unable to upload the attachment.");
@@ -55,7 +54,7 @@ export default function AttachmentSection({ ticketId, requesterId, attachments, 
 
   async function confirmRemove(id: number) {
     try {
-      await removeAttachment(id, requesterId, reasonDraft.trim() || undefined);
+      await removeAttachment(id, reasonDraft.trim() || undefined);
       setRemovingId(null);
       await onRefresh();
     } catch (err) {
@@ -76,7 +75,7 @@ export default function AttachmentSection({ ticketId, requesterId, attachments, 
               <li key={a.id} className="d-flex justify-content-between align-items-center py-2 border-bottom">
                 <div>
                   {a.active ? (
-                    <a href={getAttachmentDownloadUrl(a.id, requesterId)}>{a.originalFileName}</a>
+                    <a href={getAttachmentDownloadUrl(a.id)}>{a.originalFileName}</a>
                   ) : (
                     <span className="text-muted text-decoration-line-through">{a.originalFileName}</span>
                   )}

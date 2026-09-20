@@ -1,14 +1,24 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ApiError, TicketDetail, getTicket } from "../api.js";
-import { useRequester } from "../context/RequesterContext.js";
+import { ApiError, Comment, TicketDetail, changeTicketStatus, getTicket, markProblemResolved } from "../api.js";
 import { PriorityBadge, StatusBadge } from "../components/Badges.js";
 import AttachmentSection from "../components/AttachmentSection.js";
+import CommentsSection from "../components/CommentsSection.js";
 
 // Issue 2-6 (Lab 2) — Requester Ticket Detail: read-only ticket fields + attachments.
 // docs/lab-02/ui-spec.md §6, specification.md FR-12/FR-13, BR-12/BR-40, AC-20/AC-21.
 // Issue 2-7 (Lab 2) — the Attachment section is now the real add/download/remove UI.
+// Issue 3-3 (Lab 3) — identity comes from the session now, not a selected Requester (BR-03/BR-17);
+// adds Public Comments and "Problem Appears Resolved" (BR-04/BR-25, ui-spec.md §5).
+// Issue 3-7 (Lab 3) — adds the Requester's own Cancel action. This was a genuine gap: Issue 3-5
+// built the backend side of a Requester's self-Cancel (PATCH /api/tickets/:id/status, BR-24,
+// tested at server/tests/lab-03/requester-regression.api.test.ts's API-56/57) and api.ts's
+// changeTicketStatus already existed for the Staff detail page to reuse, but no Requester-facing
+// control was ever wired up — ui-spec.md §5 never mentions one either. Found while writing this
+// issue's E2E-07 spec, which needs exactly this action.
 type LoadState = "loading" | "ready" | "not-found" | "failure";
+const TERMINAL_STATUSES = ["RESOLVED", "CLOSED", "CANCELLED"];
+const CANCELLABLE_STATUSES = ["NEW", "OPEN"]; // BR-24
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString();
@@ -16,16 +26,20 @@ function formatDateTime(iso: string): string {
 
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { requester } = useRequester();
 
   const [state, setState] = useState<LoadState>("loading");
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
+  const [resolvedBusy, setResolvedBusy] = useState(false);
+  const [resolvedError, setResolvedError] = useState<string | null>(null);
+  const [cancelPending, setCancelPending] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   async function load() {
-    if (!requester || !id) return;
+    if (!id) return;
     setState("loading");
     try {
-      const result = await getTicket(Number(id), requester.id);
+      const result = await getTicket(Number(id));
       setTicket(result);
       setState("ready");
     } catch (err) {
@@ -40,7 +54,40 @@ export default function TicketDetailPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, requester?.id]);
+  }, [id]);
+
+  function handleCommentPosted(comment: Comment) {
+    setTicket((prev) => (prev ? { ...prev, comments: [...prev.comments, comment] } : prev));
+  }
+
+  async function handleMarkResolved() {
+    if (!ticket) return;
+    setResolvedBusy(true);
+    setResolvedError(null);
+    try {
+      const result = await markProblemResolved(ticket.id);
+      setTicket((prev) => (prev ? { ...prev, requesterConfirmedResolvedAt: result.requesterConfirmedResolvedAt } : prev));
+    } catch (err) {
+      setResolvedError(err instanceof ApiError ? err.message : "Unable to update this ticket.");
+    } finally {
+      setResolvedBusy(false);
+    }
+  }
+
+  async function handleCancelTicket() {
+    if (!ticket) return;
+    setCancelBusy(true);
+    setCancelError(null);
+    try {
+      const result = await changeTicketStatus(ticket.id, "CANCELLED");
+      setTicket((prev) => (prev ? { ...prev, currentStatus: result.currentStatus } : prev));
+      setCancelPending(false);
+    } catch (err) {
+      setCancelError(err instanceof ApiError ? err.message : "Unable to cancel this ticket.");
+    } finally {
+      setCancelBusy(false);
+    }
+  }
 
   if (state === "loading") {
     return <p className="text-muted">Loading ticket…</p>;
@@ -90,9 +137,44 @@ export default function TicketDetailPage() {
       <div className="row g-3 mb-4">
         <div className="col-md-3">
           <label className="form-label fw-semibold">Current Status</label>
-          <div>
+          <div className="mb-1">
             <StatusBadge status={ticket.currentStatus} />
           </div>
+          {/* BR-24: Requester's only status power — Cancel, and only from New/Open. */}
+          {CANCELLABLE_STATUSES.includes(ticket.currentStatus) && (
+            <>
+              {cancelError && (
+                <div className="text-danger small mb-1" role="alert">
+                  {cancelError}
+                </div>
+              )}
+              {cancelPending ? (
+                <div className="d-flex gap-2 align-items-center">
+                  <span className="small">Cancel this ticket?</span>
+                  <button
+                    type="button"
+                    className={`btn btn-outline-danger btn-sm${cancelBusy ? " btn-busy" : ""}`}
+                    disabled={cancelBusy}
+                    onClick={handleCancelTicket}
+                  >
+                    {cancelBusy ? "Saving…" : "Confirm"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm"
+                    disabled={cancelBusy}
+                    onClick={() => setCancelPending(false)}
+                  >
+                    Keep Ticket
+                  </button>
+                </div>
+              ) : (
+                <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => setCancelPending(true)}>
+                  Cancel Ticket
+                </button>
+              )}
+            </>
+          )}
         </div>
         <div className="col-md-3">
           <label className="form-label fw-semibold">Requested Priority</label>
@@ -157,12 +239,39 @@ export default function TicketDetailPage() {
       </div>
 
       {/* Attachment section — visually separated from the read-only fields above */}
-      <AttachmentSection
-        ticketId={ticket.id}
-        requesterId={requester!.id}
-        attachments={ticket.attachments}
-        onRefresh={load}
-      />
+      <AttachmentSection ticketId={ticket.id} attachments={ticket.attachments} onRefresh={load} />
+
+      {/* Issue 3-3 — "Problem Appears Resolved": informational only, never changes Current Status
+          (BR-25). Hidden once the ticket is already Resolved/Closed/Cancelled. */}
+      <div className="card mt-3">
+        <div className="card-body">
+          <h2 className="h6 card-title">Problem Status</h2>
+          {ticket.requesterConfirmedResolvedAt ? (
+            <p className="mb-0 text-muted small">
+              You indicated this problem appears resolved on {formatDateTime(ticket.requesterConfirmedResolvedAt)}.
+            </p>
+          ) : TERMINAL_STATUSES.includes(ticket.currentStatus) ? null : (
+            <>
+              {resolvedError && (
+                <div className="text-danger small mb-2" role="alert">
+                  {resolvedError}
+                </div>
+              )}
+              <button
+                type="button"
+                className={`btn btn-outline-secondary btn-sm${resolvedBusy ? " btn-busy" : ""}`}
+                disabled={resolvedBusy}
+                onClick={handleMarkResolved}
+              >
+                {resolvedBusy ? "Saving…" : "Mark Problem as Resolved"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Issue 3-3 — Public Comments */}
+      <CommentsSection ticketId={ticket.id} comments={ticket.comments} onPosted={handleCommentPosted} />
     </div>
   );
 }

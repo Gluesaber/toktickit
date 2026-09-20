@@ -10,10 +10,25 @@ export interface RelatedSystem {
   name: string;
 }
 
+// The shape nested under TicketDetail.requester (id/name/email) — not tied to the removed
+// Development Requester Selector, which used to be this interface's only consumer.
 export interface Requester {
   id: number;
   name: string;
   email: string;
+}
+
+// Issue 3-2 (Lab 3) — the authenticated identity (specification.md §7, api-spec.md §1). Never
+// includes passwordHash — the backend never sends it (BR-06/BR-16).
+export type Role = "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: Role;
+  isActive: boolean;
+  mustChangePassword: boolean;
 }
 
 export type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
@@ -61,8 +76,9 @@ export interface TicketListResponse {
 export type SortField = "createdAt" | "ticketNumber" | "currentStatus" | "requestedPriority";
 export type SortDir = "asc" | "desc";
 
+// Issue 3-3 (Lab 3) — `requesterId` removed (BR-03/BR-17): the authenticated session determines
+// whose tickets these are, never a client-supplied field.
 export interface TicketListQuery {
-  requesterId: number;
   search?: string;
   categoryId?: number;
   relatedSystemId?: number;
@@ -85,6 +101,14 @@ export interface Attachment {
   active: boolean;
 }
 
+// Issue 3-3 (Lab 3) — Public Comments (api-spec.md §4).
+export interface Comment {
+  id: number;
+  author: { id: number; name: string; role: Role };
+  content: string;
+  createdAt: string;
+}
+
 export interface TicketDetail {
   id: number;
   ticketNumber: string;
@@ -95,13 +119,15 @@ export interface TicketDetail {
   description: string;
   requestedPriority: Priority;
   currentStatus: string;
+  requesterConfirmedResolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
   attachments: Attachment[];
+  comments: Comment[];
 }
 
+// Issue 3-3 (Lab 3) — `requesterId` removed, same reasoning as TicketListQuery above.
 export interface CreateTicketInput {
-  requesterId: number;
   categoryId: number;
   relatedSystemId: number;
   summary: string;
@@ -142,31 +168,25 @@ async function parseErrorAndThrow(res: Response): Promise<never> {
 }
 
 // Issue 2-4 (Lab 2) — active Categories, for the Create Ticket classification group.
+// Issue 3-3 (Lab 3) — now session-gated (BR-11); `credentials: "include"` added.
 export async function getCategories(): Promise<Category[]> {
-  const res = await fetch(`${API_URL}/api/categories`);
+  const res = await fetch(`${API_URL}/api/categories`, { credentials: "include" });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }
 
 // Issue 2-4 (Lab 2) — active Related Systems, for the Create Ticket classification group.
 export async function getRelatedSystems(): Promise<RelatedSystem[]> {
-  const res = await fetch(`${API_URL}/api/related-systems`);
-  if (!res.ok) return parseErrorAndThrow(res);
-  return res.json();
-}
-
-// Issue 2-3 (Lab 2) — active Development Requesters for the Selection screen (BR-07, BR-35).
-export async function getRequesters(): Promise<Requester[]> {
-  const res = await fetch(`${API_URL}/api/requesters`);
+  const res = await fetch(`${API_URL}/api/related-systems`, { credentials: "include" });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }
 
 // Issue 2-5 (Lab 2) — the current Requester's ticket list: search/filter/sort/pagination.
 // api-spec.md §4 is the exact query contract.
+// Issue 3-3 (Lab 3) — no requesterId param; identity comes from the session cookie.
 export async function getTickets(query: TicketListQuery): Promise<TicketListResponse> {
   const params = new URLSearchParams();
-  params.set("requesterId", String(query.requesterId));
   if (query.search) params.set("search", query.search);
   if (query.categoryId !== undefined) params.set("categoryId", String(query.categoryId));
   if (query.relatedSystemId !== undefined) params.set("relatedSystemId", String(query.relatedSystemId));
@@ -177,16 +197,15 @@ export async function getTickets(query: TicketListQuery): Promise<TicketListResp
   if (query.page !== undefined) params.set("page", String(query.page));
   if (query.pageSize !== undefined) params.set("pageSize", String(query.pageSize));
 
-  const res = await fetch(`${API_URL}/api/tickets?${params.toString()}`);
+  const res = await fetch(`${API_URL}/api/tickets?${params.toString()}`, { credentials: "include" });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }
 
-// Issue 2-6 (Lab 2) — one owned Ticket + its Attachments, for Ticket Detail. Nonexistent and
-// not-owned both surface as the same ApiError (code NOT_FOUND) — BR-12, BR-40, AC-21.
-export async function getTicket(id: number, requesterId: number): Promise<TicketDetail> {
-  const params = new URLSearchParams({ requesterId: String(requesterId) });
-  const res = await fetch(`${API_URL}/api/tickets/${id}?${params.toString()}`);
+// Issue 2-6 (Lab 2) — one owned Ticket + its Attachments/Comments, for Ticket Detail. Nonexistent
+// and not-owned both surface as the same ApiError (code NOT_FOUND) — BR-12, BR-40, AC-21.
+export async function getTicket(id: number): Promise<TicketDetail> {
+  const res = await fetch(`${API_URL}/api/tickets/${id}`, { credentials: "include" });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }
@@ -196,6 +215,7 @@ export async function getTicket(id: number, requesterId: number): Promise<Ticket
 export async function createTicket(input: CreateTicketInput): Promise<Ticket> {
   const res = await fetch(`${API_URL}/api/tickets`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
@@ -204,12 +224,12 @@ export async function createTicket(input: CreateTicketInput): Promise<Ticket> {
 }
 
 // Issue 2-7 (Lab 2) — add an Attachment to an owned Ticket (AC-06, AC-25, BR-27–BR-30).
-export async function uploadAttachment(ticketId: number, requesterId: number, file: File): Promise<Attachment> {
+export async function uploadAttachment(ticketId: number, file: File): Promise<Attachment> {
   const formData = new FormData();
-  formData.append("requesterId", String(requesterId));
   formData.append("file", file);
   const res = await fetch(`${API_URL}/api/tickets/${ticketId}/attachments`, {
     method: "POST",
+    credentials: "include",
     body: formData,
   });
   if (!res.ok) return parseErrorAndThrow(res);
@@ -217,24 +237,322 @@ export async function uploadAttachment(ticketId: number, requesterId: number, fi
 }
 
 // Issue 2-7 (Lab 2) — soft-remove an owned, active Attachment (AC-26, BR-31).
-export async function removeAttachment(
-  attachmentId: number,
-  requesterId: number,
-  reason?: string
-): Promise<Attachment> {
+export async function removeAttachment(attachmentId: number, reason?: string): Promise<Attachment> {
   const res = await fetch(`${API_URL}/api/attachments/${attachmentId}`, {
     method: "DELETE",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ requesterId, reason }),
+    body: JSON.stringify({ reason }),
   });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }
 
 // Issue 2-7 (Lab 2) — download URL for an active Attachment (AC-22). Rendered as a plain <a href>
-// so the browser handles the download directly via the server's Content-Disposition header,
-// rather than fetching the bytes through JS.
-export function getAttachmentDownloadUrl(attachmentId: number, requesterId: number): string {
-  const params = new URLSearchParams({ requesterId: String(requesterId) });
-  return `${API_URL}/api/attachments/${attachmentId}/download?${params.toString()}`;
+// so the browser handles the download directly via the server's Content-Disposition header, rather
+// than fetching the bytes through JS — the browser's own navigation carries the session cookie
+// automatically (same-origin via vite.config.ts's dev proxy), no requesterId param needed anymore.
+export function getAttachmentDownloadUrl(attachmentId: number): string {
+  return `${API_URL}/api/attachments/${attachmentId}/download`;
+}
+
+// ---------------------------------------------------------------------------
+// Issue 3-3 (Lab 3) — Public Comments + "Problem Appears Resolved". api-spec.md §3/§4.
+// ---------------------------------------------------------------------------
+
+export async function getComments(ticketId: number): Promise<Comment[]> {
+  const res = await fetch(`${API_URL}/api/tickets/${ticketId}/comments`, { credentials: "include" });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function postComment(ticketId: number, content: string): Promise<Comment> {
+  const res = await fetch(`${API_URL}/api/tickets/${ticketId}/comments`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function markProblemResolved(ticketId: number): Promise<{ id: number; requesterConfirmedResolvedAt: string }> {
+  const res = await fetch(`${API_URL}/api/tickets/${ticketId}/resolved-indication`, {
+    method: "PATCH",
+    credentials: "include",
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Issue 3-4 (Lab 3) — the Staff Ticket Queue. api-spec.md §6/§7.
+// ---------------------------------------------------------------------------
+
+export interface StaffTicketListItem {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  requesterName: string;
+  requestedPriority: Priority;
+  itPriority: Priority;
+  currentStatus: string;
+  owner: { id: number; name: string; role: Role } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffTicketListResponse {
+  data: StaffTicketListItem[];
+  pagination: PaginationMeta;
+}
+
+export type StaffSortField = "createdAt" | "currentStatus" | "itPriority" | "updatedAt";
+
+export interface StaffTicketListQuery {
+  search?: string;
+  categoryId?: number;
+  requestedPriority?: Priority;
+  itPriority?: Priority;
+  currentStatus?: string;
+  ownerId?: number | "unassigned";
+  sortBy?: StaffSortField;
+  sortDir?: SortDir;
+  page?: number;
+  pageSize?: number;
+}
+
+export async function getStaffTickets(query: StaffTicketListQuery): Promise<StaffTicketListResponse> {
+  const params = new URLSearchParams();
+  if (query.search) params.set("search", query.search);
+  if (query.categoryId !== undefined) params.set("categoryId", String(query.categoryId));
+  if (query.requestedPriority) params.set("requestedPriority", query.requestedPriority);
+  if (query.itPriority) params.set("itPriority", query.itPriority);
+  if (query.currentStatus) params.set("currentStatus", query.currentStatus);
+  if (query.ownerId !== undefined) params.set("ownerId", String(query.ownerId));
+  if (query.sortBy) params.set("sortBy", query.sortBy);
+  if (query.sortDir) params.set("sortDir", query.sortDir);
+  if (query.page !== undefined) params.set("page", String(query.page));
+  if (query.pageSize !== undefined) params.set("pageSize", String(query.pageSize));
+
+  const res = await fetch(`${API_URL}/api/staff/tickets?${params.toString()}`, { credentials: "include" });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Issue 3-5 (Lab 3) — Staff Ticket Detail: claim/reassign, IT Priority, status, Internal Notes.
+// api-spec.md §6.
+// ---------------------------------------------------------------------------
+
+export interface Note {
+  id: number;
+  author: { id: number; name: string; role: Role };
+  content: string;
+  createdAt: string;
+}
+
+export interface StaffTicketDetail {
+  id: number;
+  ticketNumber: string;
+  requester: Requester;
+  owner: { id: number; name: string; role: Role } | null;
+  category: Category;
+  relatedSystem: RelatedSystem;
+  summary: string;
+  description: string;
+  requestedPriority: Priority;
+  itPriority: Priority;
+  currentStatus: string;
+  requesterConfirmedResolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  attachments: Attachment[];
+  comments: Comment[];
+  notes: Note[];
+}
+
+// Not in api-spec.md's original planning draft — added to populate ui-spec.md §7.1's Reassign
+// picker (see server/src/app.ts's comment above GET /api/staff/users for why).
+export interface StaffUser {
+  id: number;
+  name: string;
+  role: Role;
+}
+
+export async function getStaffUsers(): Promise<StaffUser[]> {
+  const res = await fetch(`${API_URL}/api/staff/users`, { credentials: "include" });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function getStaffTicket(id: number): Promise<StaffTicketDetail> {
+  const res = await fetch(`${API_URL}/api/staff/tickets/${id}`, { credentials: "include" });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function setTicketOwner(ticketId: number, ownerId: number): Promise<{ id: number; owner: { id: number; name: string; role: Role } }> {
+  const res = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/owner`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ownerId }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function setItPriority(ticketId: number, itPriority: Priority): Promise<{ id: number; itPriority: Priority }> {
+  const res = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/priority`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ itPriority }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function postNote(ticketId: number, content: string): Promise<Note> {
+  const res = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/notes`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// Shared by the Requester's own Cancel action (TicketDetailPage) and every IT-Staff/Administrator
+// transition (StaffTicketDetailPage) — one endpoint, specification.md §11's Cancel-scope decision.
+export async function changeTicketStatus(ticketId: number, status: string): Promise<{ id: number; currentStatus: string; updatedAt: string }> {
+  const res = await fetch(`${API_URL}/api/tickets/${ticketId}/status`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Issue 3-6 (Lab 3) — Administrator User Management. api-spec.md §8.
+// ---------------------------------------------------------------------------
+
+export interface AdminUser {
+  id: number;
+  name: string;
+  email: string;
+  role: Role;
+  isActive: boolean;
+}
+
+export interface AdminUserQuery {
+  search?: string;
+  role?: Role;
+}
+
+export async function getAdminUsers(query: AdminUserQuery = {}): Promise<AdminUser[]> {
+  const params = new URLSearchParams();
+  if (query.search) params.set("search", query.search);
+  if (query.role) params.set("role", query.role);
+
+  const res = await fetch(`${API_URL}/api/admin/users?${params.toString()}`, { credentials: "include" });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export interface CreateAdminUserInput {
+  name: string;
+  email: string;
+  role: Role;
+  isActive: boolean;
+  initialPassword: string;
+}
+
+export async function createAdminUser(input: CreateAdminUserInput): Promise<AdminUser> {
+  const res = await fetch(`${API_URL}/api/admin/users`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export interface EditAdminUserInput {
+  name?: string;
+  email?: string;
+  role?: Role;
+  isActive?: boolean;
+}
+
+export async function editAdminUser(id: number, input: EditAdminUserInput): Promise<AdminUser> {
+  const res = await fetch(`${API_URL}/api/admin/users/${id}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function resetUserPassword(id: number, newInitialPassword: string): Promise<{ id: number; mustChangePassword: boolean }> {
+  const res = await fetch(`${API_URL}/api/admin/users/${id}/reset-password`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ newInitialPassword }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Issue 3-2 (Lab 3) — Authentication. api-spec.md §1.
+// `credentials: "include"` on every one of these: the session cookie (BR-09) needs to ride along
+// even though vite.config.ts's dev proxy already makes this same-origin in practice — explicit here
+// so these calls stay correct if API_URL is ever pointed at a different origin.
+// ---------------------------------------------------------------------------
+
+export async function login(email: string, password: string): Promise<User> {
+  const res = await fetch(`${API_URL}/api/auth/login`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function logout(): Promise<void> {
+  const res = await fetch(`${API_URL}/api/auth/logout`, { method: "POST", credentials: "include" });
+  if (!res.ok) return parseErrorAndThrow(res);
+}
+
+// Returns null for an unauthenticated caller (401) rather than throwing — callers use this to
+// restore/check session state on load, where "not logged in" is an expected outcome, not a failure.
+export async function getMe(): Promise<User | null> {
+  const res = await fetch(`${API_URL}/api/auth/me`, { credentials: "include" });
+  if (res.status === 401) return null;
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function changePassword(newPassword: string, confirmPassword: string): Promise<User> {
+  const res = await fetch(`${API_URL}/api/auth/change-password`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ newPassword, confirmPassword }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
 }

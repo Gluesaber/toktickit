@@ -1,25 +1,31 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import TicketDetailPage from "../../src/pages/TicketDetailPage.js";
-import { RequesterProvider } from "../../src/context/RequesterContext.js";
+import { AuthProvider } from "../../src/context/AuthContext.js";
 import * as api from "../../src/api.js";
 import { ApiError } from "../../src/api.js";
 import type { Attachment, TicketDetail } from "../../src/api.js";
 
+// Issue 3-3 (Lab 3) — identity now comes from the authenticated session (BR-03/BR-17); getMe() is
+// mocked instead of seeding a selected Requester into localStorage.
 function renderPage(id = "1") {
-  window.localStorage.setItem(
-    "toktickit.selectedRequester",
-    JSON.stringify({ id: 1, name: "Alex Rivera", email: "alex.rivera@example.edu" })
-  );
+  vi.spyOn(api, "getMe").mockResolvedValue({
+    id: 1,
+    name: "Alex Rivera",
+    email: "alex.rivera@example.edu",
+    role: "REQUESTER",
+    isActive: true,
+    mustChangePassword: false,
+  });
   return render(
     <MemoryRouter initialEntries={[`/tickets/${id}`]}>
-      <RequesterProvider>
+      <AuthProvider>
         <Routes>
           <Route path="/tickets/:id" element={<TicketDetailPage />} />
         </Routes>
-      </RequesterProvider>
+      </AuthProvider>
     </MemoryRouter>
   );
 }
@@ -49,18 +55,16 @@ function makeTicketDetail(overrides: Partial<TicketDetail> = {}): TicketDetail {
     description: "Battery drops from 100% to 20% within an hour of unplugging, started this week.",
     requestedPriority: "MEDIUM",
     currentStatus: "NEW",
+    requesterConfirmedResolvedAt: null,
     createdAt: "2026-08-24T09:00:00.000Z",
     updatedAt: "2026-08-24T09:00:00.000Z",
     attachments: [],
+    comments: [],
     ...overrides,
   };
 }
 
 describe("TicketDetailPage", () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-  });
-
   // UI-15 (AC-20)
   it("renders all ticket fields as read-only with the returned values", async () => {
     vi.spyOn(api, "getTicket").mockResolvedValue(makeTicketDetail());
@@ -152,7 +156,7 @@ describe("TicketDetailPage", () => {
     await user.click(screen.getByRole("button", { name: /confirm/i }));
 
     await waitFor(() => {
-      expect(removeSpy).toHaveBeenCalledWith(3, 1, "Blurry");
+      expect(removeSpy).toHaveBeenCalledWith(3, "Blurry");
     });
     expect(await screen.findByText("Unavailable")).toBeInTheDocument();
   });
