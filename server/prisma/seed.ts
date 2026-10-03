@@ -1,6 +1,7 @@
 import { getPrisma } from "../src/prisma.js";
 import { hashPassword } from "../src/auth.js";
 import { DEV_SEED_PASSWORD, USERS } from "./seedData.js";
+import { SEED_TICKETS, seedTickets } from "./seedTickets.js";
 
 // Issue 3 (Lab 1) — seed the four supported categories.
 // The four names are: Account and Access, Hardware, Software, Network.
@@ -62,6 +63,11 @@ async function main() {
     // else: row already fully seeded with a real hash — idempotent re-run leaves it untouched.
   }
   console.log(`Seeded ${USERS.length} users: ${created} created, ${backfilled} migrated-password backfilled.`);
+
+  // Issue 4-2 (Lab 4) — demo Tickets with Actions, Comments, Notes and status history (BR-36/BR-37).
+  // Needs the users above to exist first. Skips every Ticket whose seedKey is already present.
+  const tickets = await seedTickets(prisma);
+  console.log(`Seeded ${SEED_TICKETS.length} demo tickets: ${tickets.created} created, ${tickets.skipped} already present.`);
 }
 
 main()
