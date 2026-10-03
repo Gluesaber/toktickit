@@ -69,6 +69,33 @@ npx prisma migrate dev --name init
 npx prisma db seed
 ```
 
+The seed is safe to run again at any time: it skips anything already present and never overwrites a
+row you've changed through the app. It also creates 14 demo tickets (`SEED-T01`–`SEED-T14`, all
+requested by `alex.rivera@example.edu`) covering every status and priority, with Actions Taken,
+comments, internal notes and status history. `morgan.chen@example.edu` and `riley.osei@example.edu`
+are deliberately left with no tickets, to show the empty dashboard states.
+
+**Upgrading an existing Lab 3 database to Lab 4.** Back up first, then apply the new migration (it
+only adds tables and columns; existing data is untouched). `migrate deploy` doesn't regenerate the
+Prisma Client, so run `prisma generate` before seeding, or the seed fails on the new Lab 4 fields:
+
+```bash
+docker exec toktickit-db-maii pg_dump -U toktickit -d toktickit -Fc -f /tmp/pre-lab4.dump
+cd server
+npx prisma migrate deploy
+npx prisma generate
+npx prisma db seed
+```
+
+To undo the Lab 4 migration, run its rollback script, which removes only the Lab 4 tables and columns
+(`server/prisma/migrations/20261003120000_lab4_actions_taken/rollback.sql` explains what is lost).
+Run these from the repository root:
+
+```bash
+docker cp server/prisma/migrations/20261003120000_lab4_actions_taken/rollback.sql toktickit-db-maii:/tmp/rollback.sql
+docker exec toktickit-db-maii psql -U toktickit -d toktickit -v ON_ERROR_STOP=1 -f /tmp/rollback.sql
+```
+
 ## 4a. Seeded accounts (local dev only)
 
 Every seeded account shares one initial password — `ChangeMe123!` — and must change it at first

@@ -641,6 +641,14 @@ All of these were agreed with the user before drafting (2026-10-03) unless marke
   - Administrators see the Staff Dashboard plus user counts. Requesters get their own dashboard.
   - Metric evidence is `psql` counts beside the screenshots, plus API tests comparing each metric to a
     direct Prisma count.
+- **No day-over-day trend figures ("+3 from yesterday").** *Added in Issue 4-2 after PR #55 review.* The
+  labsheet's example dashboard wireframes show a trend line under each card. Dashboards here are
+  real-time operational counts (BR-28): each number is computed at request time, and no daily snapshot is
+  stored. A trend would need either a new snapshot table and scheduled job, or reconstructing past counts
+  from status history. That history is incomplete for legacy Tickets (BR-21), so the figure would be
+  wrong. Both options are new scope beyond the labsheet's §4.6 metric examples, and the second would be
+  inaccurate. Cards therefore show the current value only. The wireframes' other elements are still
+  candidates for Issue 4-5: welcome line, Quick Actions panel, "View all" links, per-status cards.
 - **Timestamps are displayed in the browser's locale**, as in Labs 2–3. Only window boundaries are
   computed in Asia/Bangkok. The dashboard shows "Since <windowStart>" so the boundary is visible.
 - **Seed Tickets belong to `alex.rivera@example.edu`.** Seeding Tickets never touches any account's

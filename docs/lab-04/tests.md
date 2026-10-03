@@ -49,9 +49,9 @@ The labsheet requires these coverage types, mapped to concrete levels and IDs be
 
 | Test ID | Req/AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UNIT-01 | BR-10, §5.3 | Action status matrix: every listed (from, to) pair and every allowed create status | Allowed | Pending |
-| UNIT-02 | BR-10, §5.3 | Every unlisted pair, every move out of Completed or Cancelled, Cancelled at create | Not allowed | Pending |
-| UNIT-03 | BR-07, BR-08, BR-09 | Action field validator on a merged Action: description/result/notes lengths, result required when Completed, follow-up note conditional, `actionAt` bounds | Returns the exact `fields` map per broken rule. Valid input returns none. Follow-up note is cleared when `followUpRequired` is false | Pending |
+| UNIT-01 | BR-10, §5.3 | Action status matrix: every listed (from, to) pair and every allowed create status | Allowed | Pass |
+| UNIT-02 | BR-10, §5.3 | Every unlisted pair, every move out of Completed or Cancelled, Cancelled at create | Not allowed | Pass |
+| UNIT-03 | BR-07, BR-08, BR-09 | Action field validator on a merged Action: description/result/notes lengths, result required when Completed, follow-up note conditional, `actionAt` bounds | Returns the exact `fields` map per broken rule. Valid input returns none. Follow-up note is cleared when `followUpRequired` is false | Pass |
 
 ### 2.2 Unit — `server/tests/lab-04/workflow-rules.unit.test.ts`
 
@@ -66,26 +66,26 @@ The labsheet requires these coverage types, mapped to concrete levels and IDs be
 
 | Test ID | Type | Req/AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
-| API-01 | Authz | AC-04, BR-03 | Requester `POST /api/staff/tickets/:id/actions`, on their own Ticket | `403 FORBIDDEN`, no row created | actions-taken.api.test.ts | Pending |
-| API-02 | Authz | AC-04, BR-03 | Requester `PATCH …/actions/:actionId`. No session on both endpoints | `403`, row unchanged. `401` without a session | actions-taken.api.test.ts | Pending |
-| API-03 | API | AC-01 | Create a valid Actions Taken | Created under the correct Ticket and actor: `201`, `ticketId` = `:id`, `performedBy` = session user (forged `performedById` ignored), `assignee` = requested active staff | actions-taken.api.test.ts | Pending |
-| API-04 | API | BR-05 | Create without `assigneeId` | `assignee` = caller | actions-taken.api.test.ts | Pending |
-| API-05 | API | AC-05, BR-05 | Assignee inactive, Requester or unknown, on create and on edit | `400 INVALID_ASSIGNEE`, `fields.assigneeId`, nothing written | actions-taken.api.test.ts | Pending |
-| API-06 | API | AC-06, BR-09 | `followUpRequired: true` with blank note. `false` with a note | First `400` (`fields.followUpNote`). Second `201` with `followUpNote: null` | actions-taken.api.test.ts | Pending |
-| API-07 | API | AC-07, BR-08 | `COMPLETED` with blank `result` on create. PATCH to `COMPLETED` with and without a stored result | `400 fields.result` when the merged result is blank. `200` when a stored result exists | actions-taken.api.test.ts | Pending |
-| API-08 | API | AC-08, BR-07 | `actionAt` before Ticket creation. Completed 10 min in the future. Planned 30 days ahead | First two `400 fields.actionAt`. Third `201` | actions-taken.api.test.ts | Pending |
-| API-09 | API | BR-08 | Blank or 2001-char description, 501-char attachment notes, `status: CANCELLED` at create | `400` with each failing field | actions-taken.api.test.ts | Pending |
-| API-10 | API | AC-09, BR-06 | Staff B edits staff A's Planned Action | `200`, `updatedBy` = B, `performedBy` = A unchanged, `version` + 1 | actions-taken.api.test.ts | Pending |
-| API-11 | API | AC-10, BR-10 | Any edit to a Completed or a Cancelled Action | `409 ACTION_LOCKED`, unchanged | actions-taken.api.test.ts | Pending |
-| API-12 | Workflow | AC-11, §5.3 | Planned → In Progress → Completed, Planned → Cancelled, and an illegal move (In Progress → Planned) | Legal moves `200`. Illegal `409 ACTION_TRANSITION_NOT_PERMITTED` | actions-taken.api.test.ts | Pending |
-| API-13 | API | AC-12, BR-02, BR-13 | Ticket owned by A. Actions by A and B with out-of-order `actionAt`, two with equal `actionAt` | Staff and Requester detail list them in `actionAt asc, id asc` order, each with its own performer and assignee | actions-taken.api.test.ts | Pending |
-| API-14 | API | AC-13, BR-12 | Create or edit on a Closed and on a Cancelled Ticket | `409 TICKET_NOT_ACTIONABLE` | actions-taken.api.test.ts | Pending |
-| API-15 | API | AC-14, BR-14 | Same `clientRequestId` sent twice in sequence, then twice in parallel (`Promise.all`) | Exactly one row each time. Responses `201` + `200` with the same `id`. Never `500` | actions-taken.api.test.ts | Pending |
-| API-16 | API | AC-16, BR-11 | `DELETE …/actions/:actionId` as staff and admin | `404`, row still present | actions-taken.api.test.ts | Pending |
-| API-17 | Authz | BR-01 | PATCH with an `:actionId` that belongs to a different Ticket | `404 NOT_FOUND` | actions-taken.api.test.ts | Pending |
-| API-18 | API | AC-24, BR-23 | PATCH with an outdated `version`, or none | `409 STALE_UPDATE` with `error.current` / `400` | actions-taken.api.test.ts | Pending |
-| API-19 | Authz | AC-15, BR-15 | Requester `GET /api/tickets/:id` (own), then another Requester's Ticket | Own: full `actions[]`, no `notes`. Other: `404` | actions-taken.api.test.ts | Pending |
-| API-20 | API | BR-25, BR-26 | Creating an Action | `Ticket.updatedAt` advances. `Ticket.version` unchanged | actions-taken.api.test.ts | Pending |
+| API-01 | Authz | AC-04, BR-03 | Requester `POST /api/staff/tickets/:id/actions`, on their own Ticket | `403 FORBIDDEN`, no row created | actions-taken.api.test.ts | Pass |
+| API-02 | Authz | AC-04, BR-03 | Requester `PATCH …/actions/:actionId`. No session on both endpoints | `403`, row unchanged. `401` without a session | actions-taken.api.test.ts | Pass |
+| API-03 | API | AC-01 | Create a valid Actions Taken | Created under the correct Ticket and actor: `201`, `ticketId` = `:id`, `performedBy` = session user (forged `performedById` ignored), `assignee` = requested active staff | actions-taken.api.test.ts | Pass |
+| API-04 | API | BR-05 | Create without `assigneeId` | `assignee` = caller | actions-taken.api.test.ts | Pass |
+| API-05 | API | AC-05, BR-05 | Assignee inactive, Requester or unknown, on create and on edit | `400 INVALID_ASSIGNEE`, `fields.assigneeId`, nothing written | actions-taken.api.test.ts | Pass |
+| API-06 | API | AC-06, BR-09 | `followUpRequired: true` with blank note. `false` with a note | First `400` (`fields.followUpNote`). Second `201` with `followUpNote: null` | actions-taken.api.test.ts | Pass |
+| API-07 | API | AC-07, BR-08 | `COMPLETED` with blank `result` on create. PATCH to `COMPLETED` with and without a stored result | `400 fields.result` when the merged result is blank. `200` when a stored result exists | actions-taken.api.test.ts | Pass |
+| API-08 | API | AC-08, BR-07 | `actionAt` before Ticket creation. Completed 10 min in the future. Planned 30 days ahead | First two `400 fields.actionAt`. Third `201` | actions-taken.api.test.ts | Pass |
+| API-09 | API | BR-08 | Blank or 2001-char description, 501-char attachment notes, `status: CANCELLED` at create | `400` with each failing field | actions-taken.api.test.ts | Pass |
+| API-10 | API | AC-09, BR-06 | Staff B edits staff A's Planned Action | `200`, `updatedBy` = B, `performedBy` = A unchanged, `version` + 1 | actions-taken.api.test.ts | Pass |
+| API-11 | API | AC-10, BR-10 | Any edit to a Completed or a Cancelled Action | `409 ACTION_LOCKED`, unchanged | actions-taken.api.test.ts | Pass |
+| API-12 | Workflow | AC-11, §5.3 | Planned → In Progress → Completed, Planned → Cancelled, and an illegal move (In Progress → Planned) | Legal moves `200`. Illegal `409 ACTION_TRANSITION_NOT_PERMITTED` | actions-taken.api.test.ts | Pass |
+| API-13 | API | AC-12, BR-02, BR-13 | Ticket owned by A. Actions by A and B with out-of-order `actionAt`, two with equal `actionAt` | Staff and Requester detail list them in `actionAt asc, id asc` order, each with its own performer and assignee | actions-taken.api.test.ts | Pass |
+| API-14 | API | AC-13, BR-12 | Create or edit on a Closed and on a Cancelled Ticket | `409 TICKET_NOT_ACTIONABLE` | actions-taken.api.test.ts | Pass |
+| API-15 | API | AC-14, BR-14 | Same `clientRequestId` sent twice in sequence, then twice in parallel (`Promise.all`) | Exactly one row each time. Responses `201` + `200` with the same `id`. Never `500` | actions-taken.api.test.ts | Pass |
+| API-16 | API | AC-16, BR-11 | `DELETE …/actions/:actionId` as staff and admin | `404`, row still present | actions-taken.api.test.ts | Pass |
+| API-17 | Authz | BR-01 | PATCH with an `:actionId` that belongs to a different Ticket | `404 NOT_FOUND` | actions-taken.api.test.ts | Pass |
+| API-18 | API | AC-24, BR-23 | PATCH with an outdated `version`, or none | `409 STALE_UPDATE` with `error.current` / `400` | actions-taken.api.test.ts | Pass |
+| API-19 | Authz | AC-15, BR-15 | Requester `GET /api/tickets/:id` (own), then another Requester's Ticket | Own: full `actions[]`, no `notes`. Other: `404` | actions-taken.api.test.ts | Pass |
+| API-20 | API | BR-25, BR-26 | Creating an Action | `Ticket.updatedAt` advances. `Ticket.version` unchanged | actions-taken.api.test.ts | Pass |
 
 ### 2.4 API — `server/tests/lab-04/ticket-workflow.api.test.ts`
 
@@ -135,10 +135,10 @@ The labsheet requires these coverage types, mapped to concrete levels and IDs be
 
 | Test ID | Type | Req/AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|---|
-| MIG-01 | Migration | AC-34, BR-35 | After migration: every pre-existing Ticket has `version ≥ 1`. Lab 3 fixture Tickets, Comments, Notes and Attachments are intact. Lab 3's API-53 legacy Ticket still resolves | All hold | Pending |
-| MIG-02 | Migration | AC-35, BR-36 | Run the seed twice in a row (programmatically) | Per-table row counts identical after the second run | Pending |
-| MIG-03 | Migration (scripted manual) | §7 rollback | On a disposable database: Lab 3 schema plus data → `migrate deploy` → `rollback.sql` → re-deploy. Row counts compared at each step | Counts equal. Schema after rollback matches Lab 3. Evidence pasted into §7 | Pending |
-| MIG-04 | Seed | AC-36, BR-37 | Seed coverage query | 8 statuses, 4 priorities, owned and unowned, 0/1/many Actions. Morgan Chen and Riley Osei have zero work. Every seed Resolved or Closed Ticket has a Completed Action | Pending |
+| MIG-01 | Migration | AC-34, BR-35 | After migration: every pre-existing Ticket has `version ≥ 1`. Lab 3 fixture Tickets, Comments, Notes and Attachments are intact. Lab 3's API-53 legacy Ticket still resolves | All hold | Pass |
+| MIG-02 | Migration | AC-35, BR-36 | Run the seed twice in a row (programmatically) | Per-table row counts identical after the second run | Pass |
+| MIG-03 | Migration (scripted manual) | §7 rollback | On a disposable database: Lab 3 schema plus data → `migrate deploy` → `rollback.sql` → re-deploy. Row counts compared at each step | Counts equal. Schema after rollback matches Lab 3. Evidence pasted into §7 | Pass |
+| MIG-04 | Seed | AC-36, BR-37 | Seed coverage query | 8 statuses, 4 priorities, owned and unowned, 0/1/many Actions. Morgan Chen and Riley Osei have zero work. Every seed Resolved or Closed Ticket has a Completed Action | Pass |
 
 ### 2.8 Performance smoke — `server/tests/lab-04/performance-smoke.api.test.ts`
 
@@ -292,23 +292,39 @@ that checklist is the final sign-off.
 
 ## 6. Final Results
 
-To be filled in as each Issue lands.
+Updated as each Issue lands. **As of Issue 4-2 (Actions Taken backend):** UNIT-01–03, API-01–20 and
+MIG-01–04 are implemented and passing.
 
 | Level | Planned | Actual so far | Passing | Failing | Deferred |
 |---|---|---|---|---|---|
-| Unit | 7 | 0 | 0 | 0 | 0 |
-| API (incl. Authz/Workflow) | 49 | 0 | 0 | 0 | 0 |
-| Migration / seed | 4 | 0 | 0 | 0 | 0 |
+| Unit | 7 | 3 (UNIT-01–03) | 3 | 0 | 0 |
+| API (incl. Authz/Workflow) | 49 | 20 (API-01–20) | 20 | 0 | 0 |
+| Migration / seed | 4 | 4 (MIG-01–04) | 4 | 0 | 0 |
 | Performance smoke | 2 | 0 | 0 | 0 | 0 |
 | UI component | 30 | 0 | 0 | 0 | 0 |
 | UI style | 2 | 0 | 0 | 0 | 0 |
 | Regression | 3 | 0 | 0 | 0 | 0 |
 | Responsive | 5 | 0 | 0 | 0 | 0 |
 | E2E | 10 | 0 | 0 | 0 | 0 |
-| **Total** | **112** | **0** | **0** | **0** | **0** |
+| **Total** | **112** | **27** | **27** | **0** | **0** |
 
-Baseline before any Lab 4 change: re-confirmed on `lab4-staging` at the start of Issue 4-2 (Lab 3 close:
-188 server + 75 client Vitest, 23 Playwright in `e2e/lab-03`).
+Baseline before any Lab 4 change, confirmed on `feature/4-2-Actions-Taken-backend` at
+`lab4-staging`'s tip (`494d1c0`): 188 server + 75 client Vitest, all passing.
+
+After Issue 4-2: `cd server && npm test` gives 267 passing (188 Lab 1–3 + 79 Lab 4 `it()` blocks across
+`action-rules.unit`, `actions-taken.api` and `migration-seed.api`). Stable across two consecutive runs
+on the shared dev DB. `cd client && npm test` gives 75 passing (no client change in this issue).
+`npx playwright test e2e/lab-03` gives 23 passing against the migrated, seeded database. REG-01–03 are
+formally signed off in Issue 4-6, but this issue already ran all three green.
+
+Two deliberate mutation checks confirmed the new tests can fail:
+- making `isActionLocked` always return false fails exactly API-11's two cases;
+- disabling the `clientRequestId` lookup fails exactly API-15's sequential and parallel cases.
+
+**PR #56 review round.** Two more API-14 cases cover a Ticket closed *during* an Action create or edit
+(the check-then-act race the reviewer found). Run against the pre-fix `app.ts`, both fail: the Action is
+written onto the already-Closed Ticket (`201` / `200`). With the fix, both get `409`. The server suite is
+now 269 (188 + 81), passing twice in a row on a freshly reset database (`toktickit_test`).
 
 ## 7. Known Limitations or Deferred Tests
 
@@ -321,3 +337,48 @@ Recorded as they are found during implementation. Known at planning time:
 - **Cross-browser coverage** stays out of scope, as in Labs 2–3. Chromium only.
 - **`e2e/lab-02` specs are retired** in Issue 4-6 (specification §11), so the regression command scopes to
   `e2e/lab-03 e2e/lab-04`.
+
+Found during implementation:
+- **MIG-03 evidence (Issue 4-2).** The rollback was rehearsed on a disposable database
+  (`toktickit_migtest`) restored from a `pg_dump` of the dev DB, then dropped. Row counts plus a checksum
+  over every pre-existing Ticket column were taken at each step:
+
+  | Step | User | Ticket | Comment | Note | Attachment | Ticket-column checksum |
+  |---|---|---|---|---|---|---|
+  | Restored (Lab 3 schema) | 982 | 1980 | 91 | 70 | 952 | 23018469638 |
+  | `migrate deploy` | 982 | 1980 | 91 | 70 | 952 | 23018469638 (all 1980 Tickets `version = 1`) |
+  | `rollback.sql` | 982 | 1980 | 91 | 70 | 952 | 23018469638 (0 Lab 4 tables, 0 Lab 4 Ticket columns) |
+  | `migrate deploy` again | 982 | 1980 | 91 | 70 | 952 | 23018469638 |
+
+  After the re-deploy, `prisma migrate diff` against `schema.prisma` shows nothing except the expected
+  `session` table. The real dev DB was then migrated with identical before/after counts and checksum,
+  and all 647 active sessions were kept.
+- **A foreign failed migration was blocking `migrate deploy` on the dev DB.** `_prisma_migrations` held
+  a failed row, `20260809130701_init`, dated 2026-09-17. It comes from the separate review checkout
+  (`toktickitReviewV`), whose server had been pointed at this database once. It failed on its first
+  statement (`relation "Category" already exists`, 0 steps applied), so no data changed. Prisma refuses
+  every new deploy while a failed row exists, so it was marked rolled back with
+  `prisma migrate resolve --rolled-back` (bookkeeping only).
+- **MIG-04 checks the seed's own rows, not whole-database totals.** The long-lived dev DB still has Lab 2
+  era Tickets, including one for Morgan Chen. "Morgan and Riley have zero work" is therefore asserted as
+  "no seed Ticket, Action, Comment or Note involves them". On a fresh clone that is the same as zero.
+  MIG-02 likewise compares seed-owned counts, because other test files insert rows in parallel.
+- **The Lab 3 visual spec overwrites `artifacts/lab-03/screenshots/` on every run.** Re-running
+  `e2e/lab-03` as regression re-captured nine graded Lab 3 screenshots, which now include the Lab 4 seed
+  tickets. They were restored with `git checkout`. To fix in Issue 4-6: regression runs must not rewrite
+  another lab's evidence (e.g. skip RESP-05's capture unless asked).
+- **Check-then-act race on closed Tickets (PR #56 review).** Both Action routes read the Ticket's status,
+  then wrote the Action as a separate step, so a Ticket closed in between could still get an Action.
+  Fixed: the authoritative check is now a conditional `UPDATE` on the Ticket (`currentStatus NOT IN
+  (Closed, Cancelled)`) inside the same transaction as the Action write, which also bumps `updatedAt`.
+  The early read check is kept only so the order of error responses is unchanged.
+
+  The test makes the race deterministic rather than hoping to hit it:
+  1. it holds an uncommitted "close" on the Ticket row;
+  2. it sends the request, which blocks on that row lock;
+  3. it commits the close, after which the request re-checks against the Closed row and refuses.
+- **Fresh database: parallel workers race to create the `session` table.** Found after the dev DB was
+  reset. `connect-pg-simple` creates its table lazily on first use, so on a database that has never had
+  it, several test workers try to create it at once and the losers' logins return 500 (12–43 failures).
+  It doesn't happen once the table exists, which is why it never showed before. For now the table can be
+  created once from `node_modules/connect-pg-simple/table.sql`. Proper fix: Issue 4-6.

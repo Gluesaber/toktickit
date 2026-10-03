@@ -200,6 +200,15 @@ stays visible):
 only the moves allowed from the stored status (specification §5.3), plus "Cancel this action" as a
 secondary button with an inline confirmation step. It sends `version` (BR-23).
 
+**Completing early** *(added after PR #56 review)*: a Planned action may be scheduled in the future, but
+a Completed action can't be dated in the future (BR-07). When the user switches Status to Completed,
+in create or edit mode, while Action Date/Time is still more than 5 minutes ahead, the form:
+- sets Action Date/Time to now;
+- shows the helper text "Date set to now because the action is being completed."
+
+The user can still change the date to an earlier time before saving. The backend rule stays as it is.
+The form only stops users from running into a validation error they had no way to anticipate.
+
 **After a Reopen**: when the Ticket's latest history entry is "→ Reopened", the card shows an info line
 "Reopened — record what is done to fix the recurrence." (specification §5.2 note).
 
