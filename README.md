@@ -76,12 +76,14 @@ comments, internal notes and status history. `morgan.chen@example.edu` and `rile
 are deliberately left with no tickets, to show the empty dashboard states.
 
 **Upgrading an existing Lab 3 database to Lab 4.** Back up first, then apply the new migration (it
-only adds tables and columns; existing data is untouched):
+only adds tables and columns; existing data is untouched). `migrate deploy` doesn't regenerate the
+Prisma Client, so run `prisma generate` before seeding, or the seed fails on the new Lab 4 fields:
 
 ```bash
 docker exec toktickit-db-maii pg_dump -U toktickit -d toktickit -Fc -f /tmp/pre-lab4.dump
 cd server
 npx prisma migrate deploy
+npx prisma generate
 npx prisma db seed
 ```
 

@@ -321,6 +321,11 @@ Two deliberate mutation checks confirmed the new tests can fail:
 - making `isActionLocked` always return false fails exactly API-11's two cases;
 - disabling the `clientRequestId` lookup fails exactly API-15's sequential and parallel cases.
 
+**PR #56 review round.** Two more API-14 cases cover a Ticket closed *during* an Action create or edit
+(the check-then-act race the reviewer found). Run against the pre-fix `app.ts`, both fail: the Action is
+written onto the already-Closed Ticket (`201` / `200`). With the fix, both get `409`. The server suite is
+now 269 (188 + 81), passing twice in a row on a freshly reset database (`toktickit_test`).
+
 ## 7. Known Limitations or Deferred Tests
 
 Recorded as they are found during implementation. Known at planning time:
@@ -362,3 +367,18 @@ Found during implementation:
   `e2e/lab-03` as regression re-captured nine graded Lab 3 screenshots, which now include the Lab 4 seed
   tickets. They were restored with `git checkout`. To fix in Issue 4-6: regression runs must not rewrite
   another lab's evidence (e.g. skip RESP-05's capture unless asked).
+- **Check-then-act race on closed Tickets (PR #56 review).** Both Action routes read the Ticket's status,
+  then wrote the Action as a separate step, so a Ticket closed in between could still get an Action.
+  Fixed: the authoritative check is now a conditional `UPDATE` on the Ticket (`currentStatus NOT IN
+  (Closed, Cancelled)`) inside the same transaction as the Action write, which also bumps `updatedAt`.
+  The early read check is kept only so the order of error responses is unchanged.
+
+  The test makes the race deterministic rather than hoping to hit it:
+  1. it holds an uncommitted "close" on the Ticket row;
+  2. it sends the request, which blocks on that row lock;
+  3. it commits the close, after which the request re-checks against the Closed row and refuses.
+- **Fresh database: parallel workers race to create the `session` table.** Found after the dev DB was
+  reset. `connect-pg-simple` creates its table lazily on first use, so on a database that has never had
+  it, several test workers try to create it at once and the losers' logins return 500 (12–43 failures).
+  It doesn't happen once the table exists, which is why it never showed before. For now the table can be
+  created once from `node_modules/connect-pg-simple/table.sql`. Proper fix: Issue 4-6.

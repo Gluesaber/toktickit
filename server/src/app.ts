@@ -1444,6 +1444,27 @@ function validationFailed(res: Response, fields: FieldErrors) {
     .json({ error: { code: "VALIDATION_ERROR", message: "Please correct the highlighted fields.", fields } });
 }
 
+// PR #56 review — the early `currentStatus` checks in the two routes below read the Ticket, then
+// write the Action as a separate step, so a Ticket closed in between could still receive an Action
+// (a check-then-act race). This conditional UPDATE, run first inside the same transaction as the
+// Action write, is the authoritative check:
+//   * if a close committed first, the WHERE no longer matches -> 0 rows -> the caller aborts with
+//     409 TICKET_NOT_ACTIONABLE and nothing is written;
+//   * if this UPDATE runs first, it holds the Ticket row lock until our transaction commits, so a
+//     concurrent status change to Closed/Cancelled waits and the Action really did come first.
+// It also does BR-26's `updatedAt` bump in the same statement. Never touches `version` (BR-25).
+type Tx = Prisma.TransactionClient;
+class TicketNotActionableError extends Error {}
+class StaleActionError extends Error {}
+
+async function touchActionableTicket(tx: Tx, ticketId: number): Promise<void> {
+  const { count } = await tx.ticket.updateMany({
+    where: { id: ticketId, currentStatus: { notIn: TICKET_NOT_ACTIONABLE_STATUSES } },
+    data: { updatedAt: new Date() },
+  });
+  if (count === 0) throw new TicketNotActionableError();
+}
+
 function ticketNotActionable(res: Response) {
   return res.status(409).json({
     error: { code: "TICKET_NOT_ACTIONABLE", message: "Actions can't be added or changed on a closed or cancelled ticket." },
@@ -1515,11 +1536,13 @@ app.post(
       const assigneeId = input.assigneeId ?? currentUserId;
       if (!(await isValidAssignee(assigneeId))) return invalidAssignee(res);
 
+      // Fast path for the common case; touchActionableTicket below is the authoritative check.
       if (TICKET_NOT_ACTIONABLE_STATUSES.includes(ticket.currentStatus)) return ticketNotActionable(res);
 
       try {
-        const [created] = await prisma.$transaction([
-          prisma.actionTaken.create({
+        const created = await prisma.$transaction(async (tx) => {
+          await touchActionableTicket(tx, ticketId);
+          return tx.actionTaken.create({
             data: {
               ticketId,
               actionAt: draft.actionAt!,
@@ -1534,13 +1557,11 @@ app.post(
               clientRequestId,
             },
             include: ACTION_INCLUDE,
-          }),
-          // BR-26: an Action is visible activity, so it moves Ticket.updatedAt — but it is
-          // append-only, so it never touches Ticket.version (BR-25).
-          prisma.ticket.update({ where: { id: ticketId }, data: { updatedAt: new Date() } }),
-        ]);
+          });
+        });
         return res.status(201).json(formatAction(created));
       } catch (err) {
+        if (err instanceof TicketNotActionableError) return ticketNotActionable(res);
         // BR-14: two simultaneous identical retries both passed the lookup above; the unique
         // constraint let exactly one insert through, and the loser answers with the winner's row.
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
@@ -1608,6 +1629,7 @@ app.patch(
 
       if (input.assigneeId !== undefined && !(await isValidAssignee(input.assigneeId))) return invalidAssignee(res);
 
+      // Fast path for the common case; touchActionableTicket below is the authoritative check.
       if (TICKET_NOT_ACTIONABLE_STATUSES.includes(action.ticket.currentStatus)) return ticketNotActionable(res);
       if (isActionLocked(action.status)) {
         return res.status(409).json({
@@ -1621,27 +1643,35 @@ app.patch(
       }
 
       // BR-23/BR-24: the version check and the write are one conditional UPDATE, so of two edits
-      // that loaded the same version exactly one can match. Zero rows matched = someone else won.
-      const matched = await prisma.$transaction(async (tx) => {
-        const { count } = await tx.actionTaken.updateMany({
-          where: { id: actionId, version: version as number },
-          data: {
-            actionAt: draft.actionAt!,
-            description: draft.description,
-            result: draft.result,
-            status: draft.status,
-            followUpRequired: draft.followUpRequired,
-            followUpNote: draft.followUpNote,
-            attachmentNotes: draft.attachmentNotes,
-            ...(input.assigneeId !== undefined ? { assigneeId: input.assigneeId } : {}),
-            updatedById: currentUserId, // BR-06
-            version: { increment: 1 },
-          },
+      // that loaded the same version exactly one can match. Zero rows matched = someone else won,
+      // and throwing StaleActionError rolls back the Ticket touch above it too — a stale edit is
+      // not activity (BR-26).
+      let matched = true;
+      try {
+        await prisma.$transaction(async (tx) => {
+          await touchActionableTicket(tx, ticketId);
+          const { count } = await tx.actionTaken.updateMany({
+            where: { id: actionId, version: version as number },
+            data: {
+              actionAt: draft.actionAt!,
+              description: draft.description,
+              result: draft.result,
+              status: draft.status,
+              followUpRequired: draft.followUpRequired,
+              followUpNote: draft.followUpNote,
+              attachmentNotes: draft.attachmentNotes,
+              ...(input.assigneeId !== undefined ? { assigneeId: input.assigneeId } : {}),
+              updatedById: currentUserId, // BR-06
+              version: { increment: 1 },
+            },
+          });
+          if (count === 0) throw new StaleActionError();
         });
-        // BR-26 — only a successful edit is activity; a stale one leaves Ticket.updatedAt alone.
-        if (count === 1) await tx.ticket.update({ where: { id: ticketId }, data: { updatedAt: new Date() } });
-        return count === 1;
-      });
+      } catch (err) {
+        if (err instanceof TicketNotActionableError) return ticketNotActionable(res);
+        if (!(err instanceof StaleActionError)) throw err;
+        matched = false;
+      }
 
       const current = await prisma.actionTaken.findUniqueOrThrow({ where: { id: actionId }, include: ACTION_INCLUDE });
       if (!matched) {

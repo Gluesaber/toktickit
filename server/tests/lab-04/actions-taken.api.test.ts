@@ -410,6 +410,52 @@ describe("API-14: no Actions on a Closed or Cancelled Ticket (AC-13, BR-12)", ()
   });
 });
 
+// PR #56 review — the check-then-act race. The test holds an uncommitted "close this Ticket"
+// transaction open, sends the request while the Ticket still reads as open, then commits the close.
+// The route's conditional UPDATE has to wait for that row lock, re-checks its WHERE against the now
+// Closed row, and refuses. Before the fix, the request's plain read passed and the Action was
+// written onto a Ticket that was already closed.
+describe("API-14 (race): a Ticket closed mid-request gets no Action (BR-12)", () => {
+  async function closeWhile<T>(ticketId: number, send: () => Promise<T>): Promise<T> {
+    let pending: Promise<T> | undefined;
+    await getPrisma().$transaction(
+      async (tx) => {
+        await tx.ticket.update({ where: { id: ticketId }, data: { currentStatus: "CLOSED" } });
+        pending = send();
+        await new Promise((r) => setTimeout(r, 400)); // let the request reach its UPDATE and block
+      },
+      { timeout: 10_000 }
+    );
+    return pending!;
+  }
+
+  it("refuses a create that raced a close, and writes nothing", async () => {
+    const ticket = await createTicket();
+    const res = await closeWhile(ticket.id, () =>
+      staffA.post(`/api/staff/tickets/${ticket.id}/actions`).send(validAction()).then((r) => r)
+    );
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("TICKET_NOT_ACTIONABLE");
+    expect(await getPrisma().actionTaken.count({ where: { ticketId: ticket.id } })).toBe(0);
+  });
+
+  it("refuses an edit that raced a close, and leaves the Action unchanged", async () => {
+    const ticket = await createTicket();
+    const action = await createAction(ticket.id, { status: "PLANNED", result: null });
+    const res = await closeWhile(ticket.id, () =>
+      staffA
+        .patch(`/api/staff/tickets/${ticket.id}/actions/${action.id}`)
+        .send({ version: action.version, description: "Edited during the close" })
+        .then((r) => r)
+    );
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("TICKET_NOT_ACTIONABLE");
+    const stored = await getPrisma().actionTaken.findUniqueOrThrow({ where: { id: action.id } });
+    expect(stored.description).toBe(action.description);
+    expect(stored.version).toBe(action.version);
+  });
+});
+
 describe("API-15: a repeated create returns the same Action (AC-14, BR-14)", () => {
   it("answers a sequential retry with 200 and the original Action", async () => {
     const ticket = await createTicket();
