@@ -79,8 +79,8 @@ export default function TicketDetailPage() {
     setCancelBusy(true);
     setCancelError(null);
     try {
-      const result = await changeTicketStatus(ticket.id, "CANCELLED");
-      setTicket((prev) => (prev ? { ...prev, currentStatus: result.currentStatus } : prev));
+      const result = await changeTicketStatus(ticket.id, "CANCELLED", ticket.version);
+      setTicket((prev) => (prev ? { ...prev, currentStatus: result.currentStatus, version: result.version } : prev));
       setCancelPending(false);
     } catch (err) {
       setCancelError(err instanceof ApiError ? err.message : "Unable to cancel this ticket.");

@@ -35,6 +35,10 @@ const SPEC_MATRIX: { from: TicketStatus; to: TicketStatus; roles: TransitionRole
   { from: "RESOLVED", to: "REOPENED", roles: STAFF },
   { from: "CLOSED", to: "REOPENED", roles: STAFF },
   { from: "REOPENED", to: "IN_PROGRESS", roles: STAFF },
+  // Issue 4-3 (Lab 4) — docs/lab-04/specification.md §5.2 supersedes Lab 3's matrix with these two
+  // added rows. Kept in this file's own transcription so UNIT-03/04 keep checking the live table.
+  { from: "REOPENED", to: "RESOLVED", roles: STAFF },
+  { from: "REOPENED", to: "CANCELLED", roles: STAFF },
 ];
 
 function isListed(from: TicketStatus, to: TicketStatus, role: TransitionRole): boolean {

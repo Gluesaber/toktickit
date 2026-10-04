@@ -98,8 +98,8 @@ export default function StaffTicketDetailPage() {
     setOwnerBusy(true);
     setOwnerError(null);
     try {
-      const result = await setTicketOwner(ticket.id, user.id);
-      setTicket((prev) => (prev ? { ...prev, owner: result.owner } : prev));
+      const result = await setTicketOwner(ticket.id, user.id, ticket.version);
+      setTicket((prev) => (prev ? { ...prev, owner: result.owner, version: result.version, updatedAt: result.updatedAt } : prev));
     } catch (err) {
       setOwnerError(err instanceof ApiError ? err.message : "Unable to claim this ticket.");
     } finally {
@@ -112,8 +112,8 @@ export default function StaffTicketDetailPage() {
     setOwnerBusy(true);
     setOwnerError(null);
     try {
-      const result = await setTicketOwner(ticket.id, Number(reassignTarget));
-      setTicket((prev) => (prev ? { ...prev, owner: result.owner } : prev));
+      const result = await setTicketOwner(ticket.id, Number(reassignTarget), ticket.version);
+      setTicket((prev) => (prev ? { ...prev, owner: result.owner, version: result.version, updatedAt: result.updatedAt } : prev));
       setReassignTarget("");
     } catch (err) {
       setOwnerError(err instanceof ApiError ? err.message : "Unable to reassign this ticket.");
@@ -127,8 +127,8 @@ export default function StaffTicketDetailPage() {
     setPriorityBusy(true);
     setPriorityError(null);
     try {
-      await setItPriorityApi(ticket.id, itPriority);
-      setTicket((prev) => (prev ? { ...prev, itPriority } : prev));
+      const result = await setItPriorityApi(ticket.id, itPriority, ticket.version);
+      setTicket((prev) => (prev ? { ...prev, itPriority, version: result.version, updatedAt: result.updatedAt } : prev));
     } catch (err) {
       setPriorityError(err instanceof ApiError ? err.message : "Unable to update IT Priority.");
     } finally {
@@ -141,8 +141,20 @@ export default function StaffTicketDetailPage() {
     setStatusBusy(true);
     setStatusError(null);
     try {
-      const result = await changeTicketStatus(ticket.id, status);
-      setTicket((prev) => (prev ? { ...prev, currentStatus: result.currentStatus, updatedAt: result.updatedAt } : prev));
+      const result = await changeTicketStatus(ticket.id, status, ticket.version);
+      // Issue 4-3 (Lab 4) — keep the new version for the next write, and pick up the server's
+      // clearing of the Requester indication (BR-18) without a reload.
+      setTicket((prev) =>
+        prev
+          ? {
+              ...prev,
+              currentStatus: result.currentStatus,
+              version: result.version,
+              updatedAt: result.updatedAt,
+              requesterConfirmedResolvedAt: result.requesterConfirmedResolvedAt,
+            }
+          : prev
+      );
       setPendingStatus("");
     } catch (err) {
       setStatusError(err instanceof ApiError ? err.message : "Unable to update the ticket's status.");

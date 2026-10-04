@@ -56,6 +56,8 @@ function makeTicketDetail(overrides: Partial<TicketDetail> = {}): TicketDetail {
     requestedPriority: "MEDIUM",
     currentStatus: "NEW",
     requesterConfirmedResolvedAt: null,
+    // Issue 4-3 (Lab 4) — BR-22 optimistic-concurrency version; 3 (not 1) so a test can tell it was passed through.
+    version: 3,
     createdAt: "2026-08-24T09:00:00.000Z",
     updatedAt: "2026-08-24T09:00:00.000Z",
     attachments: [],
