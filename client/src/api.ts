@@ -109,6 +109,42 @@ export interface Comment {
   createdAt: string;
 }
 
+// Issue 4-4 (Lab 4) — Actions Taken and status history, as returned inside both Ticket Detail
+// responses (docs/lab-04/api-spec.md §0/§1).
+export type ActionStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+
+export interface UserRef {
+  id: number;
+  name: string;
+  role: Role;
+}
+
+export interface ActionTaken {
+  id: number;
+  ticketId: number;
+  actionAt: string;
+  description: string;
+  result: string | null;
+  status: ActionStatus;
+  performedBy: UserRef;
+  assignee: UserRef & { isActive: boolean };
+  followUpRequired: boolean;
+  followUpNote: string | null;
+  attachmentNotes: string | null;
+  version: number;
+  updatedBy: UserRef | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StatusHistoryEntry {
+  id: number;
+  fromStatus: string | null; // null = the "Created as New" entry
+  toStatus: string;
+  changedBy: UserRef;
+  changedAt: string;
+}
+
 export interface TicketDetail {
   id: number;
   ticketNumber: string;
@@ -127,6 +163,8 @@ export interface TicketDetail {
   updatedAt: string;
   attachments: Attachment[];
   comments: Comment[];
+  actions: ActionTaken[]; // Issue 4-4 (Lab 4) — read-only for the Requester (BR-15)
+  statusHistory: StatusHistoryEntry[];
 }
 
 // Issue 3-3 (Lab 3) — `requesterId` removed, same reasoning as TicketListQuery above.
@@ -144,17 +182,20 @@ export interface ApiErrorBody {
     code: string;
     message: string;
     fields?: Record<string, string>;
+    current?: unknown; // Issue 4-4 (Lab 4) — the server's current state on 409 STALE_UPDATE
   };
 }
 
 export class ApiError extends Error {
   code: string;
   fields?: Record<string, string>;
+  current?: unknown;
 
   constructor(body: ApiErrorBody) {
     super(body.error.message);
     this.code = body.error.code;
     this.fields = body.error.fields;
+    this.current = body.error.current;
   }
 }
 
@@ -375,6 +416,8 @@ export interface StaffTicketDetail {
   attachments: Attachment[];
   comments: Comment[];
   notes: Note[];
+  actions: ActionTaken[]; // Issue 4-4 (Lab 4)
+  statusHistory: StatusHistoryEntry[];
 }
 
 // Not in api-spec.md's original planning draft — added to populate ui-spec.md §7.1's Reassign
@@ -571,6 +614,60 @@ export async function changePassword(newPassword: string, confirmPassword: strin
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ newPassword, confirmPassword }),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Issue 4-4 (Lab 4) — Actions Taken create/edit (docs/lab-04/api-spec.md §2). Both live under
+// /api/staff/*, so only IT Staff/Administrator screens call them.
+// ---------------------------------------------------------------------------
+
+export interface ActionInput {
+  actionAt?: string;
+  description?: string;
+  result?: string | null;
+  status?: ActionStatus;
+  assigneeId?: number;
+  followUpRequired?: boolean;
+  followUpNote?: string | null;
+  attachmentNotes?: string | null;
+}
+
+// One id per opened create form, so a double click or a network retry of the same form can never
+// create a second Action (BR-14). Falls back to a non-crypto id where randomUUID isn't available.
+export function newClientRequestId(): string {
+  const c = globalThis.crypto as Crypto | undefined;
+  if (c && typeof c.randomUUID === "function") return c.randomUUID();
+  return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+// 201 (created) and 200 (an earlier identical request already created it) are both success.
+export async function createAction(
+  ticketId: number,
+  input: ActionInput & { clientRequestId: string }
+): Promise<ActionTaken> {
+  const res = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/actions`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function updateAction(
+  ticketId: number,
+  actionId: number,
+  input: ActionInput & { version: number }
+): Promise<ActionTaken> {
+  const res = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/actions/${actionId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
   });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();

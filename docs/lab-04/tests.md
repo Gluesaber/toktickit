@@ -174,28 +174,28 @@ The labsheet requires these coverage types, mapped to concrete levels and IDs be
 
 | Test ID | Req/AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-11 | FR-01, AC-12 | List render | Rows in the given order with all fields. Empty state when there are none | Pending |
-| UI-12 | AC-06, AC-07 | Client validation | Follow-up Note appears only when checked and is required. Result becomes required when Status = Completed. No request while invalid | Pending |
-| UI-13 | AC-14, AC-37 | Double click Save. Simulated retry | Exactly one POST in flight. The retry reuses the same `clientRequestId` | Pending |
-| UI-14 | AC-38 | Mocked `400` with `fields` | Messages under the right fields plus summary. All input retained | Pending |
-| UI-15 | AC-10 | Completed and Cancelled rows | No Edit control. View mode shows "Last edited by…" | Pending |
-| UI-16 | AC-24 | Edit, then mocked `409 STALE_UPDATE` | Conflict alert with Reload. Edited values retained. `version` was sent | Pending |
-| UI-17 | AC-05 | Mocked `400 INVALID_ASSIGNEE` | Message under Assignee | Pending |
-| UI-18 | AC-15 | Requester variant | All fields visible. No Add, Edit or form | Pending |
-| UI-19 | BR-12 | Ticket Closed | Add Action hidden, read-only note shown | Pending |
-| STYLE-02 | ui-spec §1.1 | `ActionStatusBadge` for all 4 statuses, Follow-up badge | Distinct class plus text label each | Pending |
+| UI-11 | FR-01, AC-12 | List render | Rows in the given order with all fields. Empty state when there are none | Pass |
+| UI-12 | AC-06, AC-07 | Client validation | Follow-up Note appears only when checked and is required. Result becomes required when Status = Completed. No request while invalid | Pass |
+| UI-13 | AC-14, AC-37 | Double click Save. Simulated retry | Exactly one POST in flight. The retry reuses the same `clientRequestId` | Pass |
+| UI-14 | AC-38 | Mocked `400` with `fields` | Messages under the right fields plus summary. All input retained | Pass |
+| UI-15 | AC-10 | Completed and Cancelled rows | No Edit control. View mode shows "Last edited by…" | Pass |
+| UI-16 | AC-24 | Edit, then mocked `409 STALE_UPDATE` | Conflict alert with Reload. Edited values retained. `version` was sent | Pass |
+| UI-17 | AC-05 | Mocked `400 INVALID_ASSIGNEE` | Message under Assignee | Pass |
+| UI-18 | AC-15 | Requester variant | All fields visible. No Add, Edit or form | Pass |
+| UI-19 | BR-12 | Ticket Closed | Add Action hidden, read-only note shown | Pass |
+| STYLE-02 | ui-spec §1.1 | `ActionStatusBadge` for all 4 statuses, Follow-up badge | Distinct class plus text label each | Pass |
 
 **`TicketWorkflow.test.tsx`**
 
 | Test ID | Req/AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-20 | AC-17, FR-07 | Status control with and without a Completed Action | "Resolved" disabled with visible reason / enabled | Pending |
-| UI-21 | AC-18 | Offered options for all 8 statuses × staff role vs an independently transcribed §5.2 | Exact match | Pending |
-| UI-22 | FR-08, AC-20 | Successful change to In Progress | Badge, history and indication pill update without reload | Pending |
-| UI-23 | AC-22 | Mocked `409 STALE_UPDATE` | Banner plus Reload. Selection retained | Pending |
-| UI-24 | FR-10, AC-20 | Staff detail with the indication set | Pill with date visible next to the status | Pending |
-| UI-25 | FR-09, BR-21 | Status History with rows / legacy with none | Ordered timeline / "not recorded" notice | Pending |
-| UI-26 | AC-22, BR-22 | Requester Cancel | Sends `version`. Stale message on `409` | Pending |
+| UI-20 | AC-17, FR-07 | Status control with and without a Completed Action | "Resolved" disabled with visible reason / enabled | Pass |
+| UI-21 | AC-18 | Offered options for all 8 statuses × staff role vs an independently transcribed §5.2 | Exact match | Pass |
+| UI-22 | FR-08, AC-20 | Successful change to In Progress | Badge, history and indication pill update without reload | Pass |
+| UI-23 | AC-22 | Mocked `409 STALE_UPDATE` | Banner plus Reload. Selection retained | Pass |
+| UI-24 | FR-10, AC-20 | Staff detail with the indication set | Pill with date visible next to the status | Pass |
+| UI-25 | FR-09, BR-21 | Status History with rows / legacy with none | Ordered timeline / "not recorded" notice | Pass |
+| UI-26 | AC-22, BR-22 | Requester Cancel | Sends `version`. Stale message on `409` | Pass |
 
 **`DrillDownFilters.test.tsx`** *(additional, §1)*
 
@@ -234,11 +234,11 @@ API rows tagged *Authz* above: API-01, 02, 17, 19, 28, 34, 37, 45 and 46. They c
 
 | Test ID | Req/AC | File | What It Tests | Expected Result | Final |
 |---|---|---|---|---|---|
-| E2E-01 | AC-01, AC-09, AC-11, AC-12 | actions-taken-flow.spec.ts | Staff A claims a Ticket and adds a Planned Action assigned to staff B. B (second browser context) moves it to In Progress, then Completed. A adds another Action | Both listed in order with correct performer and assignee. Completed one is locked | Pending |
-| E2E-02 | AC-03, AC-17, AC-19 | ticket-resolution.spec.ts | "Resolved" disabled with reason. Record a Completed Action. Resolve. Requester logs in and sees the Actions and history read-only | Each step as specified | Pending |
-| E2E-03 | AC-20, AC-21 | ticket-resolution.spec.ts | Requester marks "appears resolved". Staff sees the pill, Resolves, Closes, Reopens. Pill cleared. Requester has no Reopen control | As specified | Pending |
-| E2E-04 | AC-22, AC-24 | ticket-resolution.spec.ts | Two staff contexts on one Ticket. One changes status. The other submits a status and an Action edit | Conflict banner, Reload, input retained, nothing overwritten | Pending |
-| E2E-05 | AC-05, AC-06, AC-08, AC-13 | actions-taken-flow.spec.ts | UI validation errors. Assignee deactivated by an Admin while the form is open, then save. Closed Ticket shows no Add Action | Field errors. `INVALID_ASSIGNEE` under Assignee. Read-only card | Pending |
+| E2E-01 | AC-01, AC-09, AC-11, AC-12 | actions-taken-flow.spec.ts | Staff A claims a Ticket and adds a Planned Action assigned to staff B. B (second browser context) moves it to In Progress, then Completed. A adds another Action | Both listed in order with correct performer and assignee. Completed one is locked | Pass |
+| E2E-02 | AC-03, AC-17, AC-19 | ticket-resolution.spec.ts | "Resolved" disabled with reason. Record a Completed Action. Resolve. Requester logs in and sees the Actions and history read-only | Each step as specified | Pass |
+| E2E-03 | AC-20, AC-21 | ticket-resolution.spec.ts | Requester marks "appears resolved". Staff sees the pill, Resolves, Closes, Reopens. Pill cleared. Requester has no Reopen control | As specified | Pass |
+| E2E-04 | AC-22, AC-24 | ticket-resolution.spec.ts | Two staff contexts on one Ticket. One changes status. The other submits a status and an Action edit | Conflict banner, Reload, input retained, nothing overwritten | Pass |
+| E2E-05 | AC-05, AC-06, AC-08, AC-13 | actions-taken-flow.spec.ts | UI validation errors. Assignee deactivated by an Admin while the form is open, then save. Closed Ticket shows no Add Action | Field errors. `INVALID_ASSIGNEE` under Assignee. Read-only card | Pass |
 | E2E-06 | AC-25, AC-26 | dashboards.spec.ts | Staff dashboard: follow every card drill-down | The Queue total shown equals each card value | Pending |
 | E2E-07 | AC-02, AC-27, AC-28 | dashboards.spec.ts | Requester dashboard drill-downs. Fresh Requester sees zeros and empty states | As specified | Pending |
 | E2E-08 | AC-30, AC-41, FR-20 | dashboards.spec.ts | Each role logs in, lands on its Dashboard (Admin with user counts), and visits every screen | Correct landing and nav. Zero console errors collected across the journey | Pending |
@@ -292,8 +292,8 @@ that checklist is the final sign-off.
 
 ## 6. Final Results
 
-Updated as each Issue lands. **As of Issue 4-3 (Ticket workflow backend):** UNIT-01–05 and UNIT-07,
-API-01–33 and MIG-01–04 are implemented and passing. UNIT-06 (the Asia/Bangkok window) is a dashboard
+Updated as each Issue lands. **As of Issue 4-4 (Actions Taken and workflow UI):** UNIT-01–05 and
+UNIT-07, API-01–33, MIG-01–04, UI-11–26, STYLE-02 and E2E-01–05 are implemented and passing. UNIT-06 (the Asia/Bangkok window) is a dashboard
 rule and lands with Issue 4-5.
 
 | Level | Planned | Actual so far | Passing | Failing | Deferred |
@@ -302,12 +302,12 @@ rule and lands with Issue 4-5.
 | API (incl. Authz/Workflow) | 49 | 33 (API-01–33) | 33 | 0 | 0 |
 | Migration / seed | 4 | 4 (MIG-01–04) | 4 | 0 | 0 |
 | Performance smoke | 2 | 0 | 0 | 0 | 0 |
-| UI component | 30 | 0 | 0 | 0 | 0 |
-| UI style | 2 | 0 | 0 | 0 | 0 |
+| UI component | 30 | 16 (UI-11–26) | 16 | 0 | 0 |
+| UI style | 2 | 1 (STYLE-02) | 1 | 0 | 0 |
 | Regression | 3 | 0 | 0 | 0 | 0 |
 | Responsive | 5 | 0 | 0 | 0 | 0 |
-| E2E | 10 | 0 | 0 | 0 | 0 |
-| **Total** | **112** | **43** | **43** | **0** | **0** |
+| E2E | 10 | 5 (E2E-01–05) | 5 | 0 | 0 |
+| **Total** | **112** | **65** | **65** | **0** | **0** |
 
 Baseline before any Lab 4 change, confirmed on `feature/4-2-Actions-Taken-backend` at
 `lab4-staging`'s tip (`494d1c0`): 188 server + 75 client Vitest, all passing.
@@ -340,6 +340,23 @@ Three deliberate mutation checks confirmed the new workflow tests can fail:
 - removing the gate fails API-21 (all four sources) and API-32;
 - removing the indication clearing fails API-27;
 - dropping `version` from the status `UPDATE`'s `WHERE` fails API-29 and API-30.
+
+**After Issue 4-4:**
+- **Client:** `cd client && npm test` gives 117 passing. That is 75 Lab 2–3, plus 42 Lab 4 in
+  `ActionsTaken.test.tsx` and `TicketWorkflow.test.tsx`, with no `act()` warnings.
+- **Server:** `cd server && npm test` gives 338 passing (no server change in this issue).
+- **Playwright:** `npx playwright test e2e/lab-03 e2e/lab-04` gives 28 passing. That is 23 Lab 3 plus
+  5 Lab 4 (`actions-taken-flow`, `ticket-resolution`). After the two fixes in §7 it was stable across
+  seven further consecutive runs, with the backend on `toktickit_test` so the main dev DB stayed at its
+  11 seed users.
+
+Three client mutation checks:
+- un-disabling the gated "Resolved" option fails UI-20;
+- generating a new `clientRequestId` per submit fails UI-13;
+- removing the late-fetch guard fails the StrictMode regression test (§7).
+
+A browser pass at 800px and 375px on a seeded Ticket with three Actions found one real overflow, fixed
+in this issue (§7).
 
 ## 7. Known Limitations or Deferred Tests
 
@@ -412,3 +429,37 @@ Found during implementation:
   offers only the Lab 3 rows, which is safe: it offers fewer moves than the API allows, never more. The
   two new Reopened options, the disabled "Resolved" reason and the conflict banner are Issue 4-4's UI
   work.
+- **Issue 4-4: the client menu now has the final §5.2 rows.** Lab 3's UI-19 matrix in
+  `StaffTicketDetail.test.tsx` gains the two Reopened rows, the same supersession already applied to
+  the server-side Lab 3 unit test.
+- **A slow, older Ticket fetch could undo a user's action (found by E2E-03, fixed).** `main.tsx` runs
+  React in StrictMode, so in development each Ticket Detail page fetched its Ticket twice on load.
+  When the older of the two fetches finished after the user had acted, it replaced the newer state.
+  For example, "Mark Problem as Resolved" visibly reverted, even though the server had saved it. The
+  same thing can happen in production whenever a fetch outlives a later change.
+
+  Fixed on both detail pages: every fetch takes a sequence number, local changes go through
+  `updateTicket` (which bumps it), and a fetch that has been overtaken is ignored when it lands. A
+  StrictMode client test reproduces the exact race and fails without the guard.
+- **Two weak Lab 3 E2E assertions became flaky against a long-lived database, and were fixed rather
+  than retried.**
+  1. `staff-ticket-flow.spec.ts` gave every run's fixture the same name, "E2E ADMINISTRATOR Staffer". On
+     `toktickit_test`, dozens of earlier fixtures appeared in the Reassign picker under that name, so
+     `getByText(name)` matched 18 elements. The name is now unique per run.
+  2. More importantly, its "claim persisted after reload" check was unscoped. It could pass by matching
+     the logged-in user's own name in the header chip, which renders before the Ticket loads, so it
+     never actually proved the claim was saved. It is now scoped to the Ownership card.
+
+  In `requester-regression.spec.ts`, the new Status History card shows status badges too, so the two
+  `getByText("New"/"Cancelled")` checks target the header badge with `.first()`, as
+  `staff-ticket-flow.spec.ts` already did.
+- **A long staff name in the Reassign picker pushed Staff Ticket Detail sideways at 375px.** Found in the
+  browser check. The page was 449px wide in a 375px viewport. The Lab 3 `w-auto` select sized itself
+  to its longest option. Fixed with `mw-100` on both auto-width selects on that page.
+
+  Lab 3's RESP check didn't catch it because its fixture ticket's page had only short names in that
+  picker. RESP-02 (Issue 4-6) should run against a database with realistic, long names.
+- **Console noise to remember for E2E-08 (Issue 4-6).** Two `401` responses from `GET /api/auth/me`
+  appear on the Login screen before anyone has logged in. They are the session check and expected, but
+  the browser logs them as errors, so E2E-08's "zero console errors" rule must either exclude them or
+  the session check must avoid a logged error.
