@@ -120,6 +120,9 @@ export interface TicketDetail {
   requestedPriority: Priority;
   currentStatus: string;
   requesterConfirmedResolvedAt: string | null;
+  // Issue 4-3 (Lab 4) — optimistic-concurrency version (docs/lab-04/specification.md BR-22), sent
+  // back on the next status change so a stale screen can't overwrite someone else's change.
+  version: number;
   createdAt: string;
   updatedAt: string;
   attachments: Attachment[];
@@ -366,6 +369,7 @@ export interface StaffTicketDetail {
   itPriority: Priority;
   currentStatus: string;
   requesterConfirmedResolvedAt: string | null;
+  version: number; // Issue 4-3 (Lab 4) — BR-22, see TicketDetail
   createdAt: string;
   updatedAt: string;
   attachments: Attachment[];
@@ -393,23 +397,34 @@ export async function getStaffTicket(id: number): Promise<StaffTicketDetail> {
   return res.json();
 }
 
-export async function setTicketOwner(ticketId: number, ownerId: number): Promise<{ id: number; owner: { id: number; name: string; role: Role } }> {
+// Issue 4-3 (Lab 4) — owner, IT Priority and status changes all carry the Ticket `version` the
+// screen last loaded and return the new one (docs/lab-04/api-spec.md §3). A mismatch comes back as
+// ApiError code STALE_UPDATE.
+export async function setTicketOwner(
+  ticketId: number,
+  ownerId: number,
+  version: number
+): Promise<{ id: number; owner: { id: number; name: string; role: Role }; version: number; updatedAt: string }> {
   const res = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/owner`, {
     method: "PATCH",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ownerId }),
+    body: JSON.stringify({ ownerId, version }),
   });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }
 
-export async function setItPriority(ticketId: number, itPriority: Priority): Promise<{ id: number; itPriority: Priority }> {
+export async function setItPriority(
+  ticketId: number,
+  itPriority: Priority,
+  version: number
+): Promise<{ id: number; itPriority: Priority; version: number; updatedAt: string }> {
   const res = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/priority`, {
     method: "PATCH",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ itPriority }),
+    body: JSON.stringify({ itPriority, version }),
   });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
@@ -428,12 +443,16 @@ export async function postNote(ticketId: number, content: string): Promise<Note>
 
 // Shared by the Requester's own Cancel action (TicketDetailPage) and every IT-Staff/Administrator
 // transition (StaffTicketDetailPage) — one endpoint, specification.md §11's Cancel-scope decision.
-export async function changeTicketStatus(ticketId: number, status: string): Promise<{ id: number; currentStatus: string; updatedAt: string }> {
+export async function changeTicketStatus(
+  ticketId: number,
+  status: string,
+  version: number
+): Promise<{ id: number; currentStatus: string; version: number; updatedAt: string; requesterConfirmedResolvedAt: string | null }> {
   const res = await fetch(`${API_URL}/api/tickets/${ticketId}/status`, {
     method: "PATCH",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, version }),
   });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();

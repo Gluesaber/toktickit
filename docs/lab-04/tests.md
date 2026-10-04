@@ -57,10 +57,10 @@ The labsheet requires these coverage types, mapped to concrete levels and IDs be
 
 | Test ID | Req/AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UNIT-04 | BR-16, §5.2 | Ticket transition matrix, every (from, to, role) triple, including new Reopened → Resolved and Reopened → Cancelled | Listed triples allowed. All others denied. Nothing leaves Cancelled | Pending |
-| UNIT-05 | BR-17 | Gate predicate over an Action list | Allowed only with ≥1 Completed. Planned, In Progress or Cancelled alone are not enough | Pending |
+| UNIT-04 | BR-16, §5.2 | Ticket transition matrix, every (from, to, role) triple, including new Reopened → Resolved and Reopened → Cancelled | Listed triples allowed. All others denied. Nothing leaves Cancelled | Pass |
+| UNIT-05 | BR-17 | Gate predicate over an Action list | Allowed only with ≥1 Completed. Planned, In Progress or Cancelled alone are not enough | Pass |
 | UNIT-06 | BR-29 | `windowStart` in Asia/Bangkok for fixed clocks, including 16:59Z vs 17:00Z, the UTC instant when the Bangkok date changes | Always 00:00 Bangkok of (today − 6), returned as UTC | Pending |
-| UNIT-07 | BR-18 | Indication-clearing rule | Clears only for targets In Progress and Reopened | Pending |
+| UNIT-07 | BR-18 | Indication-clearing rule | Clears only for targets In Progress and Reopened | Pass |
 
 ### 2.3 API — `server/tests/lab-04/actions-taken.api.test.ts`
 
@@ -91,19 +91,19 @@ The labsheet requires these coverage types, mapped to concrete levels and IDs be
 
 | Test ID | Type | Req/AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|---|
-| API-21 | Workflow | AC-17, BR-17 | → Resolved from Open, In Progress, Waiting and Reopened with no Actions, then with only Planned and Cancelled Actions | Every attempt `409 RESOLUTION_REQUIRES_COMPLETED_ACTION`, status unchanged, no history row | Pending |
-| API-22 | Workflow | AC-03 | Record a Completed Action, then In Progress → Resolved | `200`, new `version`, one history row (In Progress → Resolved, changedBy = caller) | Pending |
-| API-23 | Workflow | AC-18, §5.2 | Every permitted (from, to, role) row through the real endpoint, staff and admin, including the new Reopened rows | Each `200` | Pending |
-| API-24 | Workflow | AC-18, BR-16 | Representative unlisted pairs (New → Resolved, Closed → In Progress, Cancelled → anything, Reopened → Waiting) | `409 TRANSITION_NOT_PERMITTED` | Pending |
-| API-25 | Workflow | AC-19, BR-20 | `POST /api/tickets` then three changes | Creation row (null → New) plus one row per change, ordered, the same on the staff and Requester detail | Pending |
-| API-26 | Workflow | AC-19, BR-20 | `PATCH`, `PUT` or `DELETE` on any history path | `404`. Rows unchanged | Pending |
-| API-27 | Workflow | AC-20, BR-18 | Requester sets the indication. Staff moves to Waiting (kept), → In Progress (cleared). Set again, Resolve, Close, Reopen (cleared) | `requesterConfirmedResolvedAt` follows exactly that pattern | Pending |
-| API-28 | Authz | AC-21, BR-19 | Requester PATCH status to Reopened, Resolved or Closed on their own Ticket | `409 TRANSITION_NOT_PERMITTED` | Pending |
-| API-29 | Workflow | AC-22, BR-22 | Outdated `version` on status, owner and priority | Each `409 STALE_UPDATE` with `error.current`. Nothing changed | Pending |
-| API-30 | Workflow | AC-23, BR-24 | Two parallel status PATCHes with the same `version` | Exactly one `200`, one `409 STALE_UPDATE`. Exactly one new history row | Pending |
-| API-31 | API | BR-22 | Status, owner and priority without `version`, or with `version: "x"` | `400 VALIDATION_ERROR` `fields.version` | Pending |
-| API-32 | Migration | BR-21, AC-34 | Legacy-style Ticket (inserted with no history rows) | Detail returns `statusHistory: []`, `version: 1`. The gate still applies to it | Pending |
-| API-33 | API | BR-26 | Public Comment vs Internal Note | Comment bumps `Ticket.updatedAt`. Note does not | Pending |
+| API-21 | Workflow | AC-17, BR-17 | → Resolved from Open, In Progress, Waiting and Reopened with no Actions, then with only Planned and Cancelled Actions | Every attempt `409 RESOLUTION_REQUIRES_COMPLETED_ACTION`, status unchanged, no history row | Pass |
+| API-22 | Workflow | AC-03 | Record a Completed Action, then In Progress → Resolved | `200`, new `version`, one history row (In Progress → Resolved, changedBy = caller) | Pass |
+| API-23 | Workflow | AC-18, §5.2 | Every permitted (from, to, role) row through the real endpoint, staff and admin, including the new Reopened rows | Each `200` | Pass |
+| API-24 | Workflow | AC-18, BR-16 | Representative unlisted pairs (New → Resolved, Closed → In Progress, Cancelled → anything, Reopened → Waiting) | `409 TRANSITION_NOT_PERMITTED` | Pass |
+| API-25 | Workflow | AC-19, BR-20 | `POST /api/tickets` then three changes | Creation row (null → New) plus one row per change, ordered, the same on the staff and Requester detail | Pass |
+| API-26 | Workflow | AC-19, BR-20 | `PATCH`, `PUT` or `DELETE` on any history path | `404`. Rows unchanged | Pass |
+| API-27 | Workflow | AC-20, BR-18 | Requester sets the indication. Staff moves to Waiting (kept), → In Progress (cleared). Set again, Resolve, Close, Reopen (cleared) | `requesterConfirmedResolvedAt` follows exactly that pattern | Pass |
+| API-28 | Authz | AC-21, BR-19 | Requester PATCH status to Reopened, Resolved or Closed on their own Ticket | `409 TRANSITION_NOT_PERMITTED` | Pass |
+| API-29 | Workflow | AC-22, BR-22 | Outdated `version` on status, owner and priority | Each `409 STALE_UPDATE` with `error.current`. Nothing changed | Pass |
+| API-30 | Workflow | AC-23, BR-24 | Two parallel status PATCHes with the same `version` | Exactly one `200`, one `409 STALE_UPDATE`. Exactly one new history row | Pass |
+| API-31 | API | BR-22 | Status, owner and priority without `version`, or with `version: "x"` | `400 VALIDATION_ERROR` `fields.version` | Pass |
+| API-32 | Migration | BR-21, AC-34 | Legacy-style Ticket (inserted with no history rows) | Detail returns `statusHistory: []`, `version: 1`. The gate still applies to it | Pass |
+| API-33 | API | BR-26 | Public Comment vs Internal Note | Comment bumps `Ticket.updatedAt`. Note does not | Pass |
 
 ### 2.5 API — `server/tests/lab-04/requester-dashboard.api.test.ts`
 
@@ -292,13 +292,14 @@ that checklist is the final sign-off.
 
 ## 6. Final Results
 
-Updated as each Issue lands. **As of Issue 4-2 (Actions Taken backend):** UNIT-01–03, API-01–20 and
-MIG-01–04 are implemented and passing.
+Updated as each Issue lands. **As of Issue 4-3 (Ticket workflow backend):** UNIT-01–05 and UNIT-07,
+API-01–33 and MIG-01–04 are implemented and passing. UNIT-06 (the Asia/Bangkok window) is a dashboard
+rule and lands with Issue 4-5.
 
 | Level | Planned | Actual so far | Passing | Failing | Deferred |
 |---|---|---|---|---|---|
-| Unit | 7 | 3 (UNIT-01–03) | 3 | 0 | 0 |
-| API (incl. Authz/Workflow) | 49 | 20 (API-01–20) | 20 | 0 | 0 |
+| Unit | 7 | 6 (UNIT-01–05, 07) | 6 | 0 | 0 |
+| API (incl. Authz/Workflow) | 49 | 33 (API-01–33) | 33 | 0 | 0 |
 | Migration / seed | 4 | 4 (MIG-01–04) | 4 | 0 | 0 |
 | Performance smoke | 2 | 0 | 0 | 0 | 0 |
 | UI component | 30 | 0 | 0 | 0 | 0 |
@@ -306,7 +307,7 @@ MIG-01–04 are implemented and passing.
 | Regression | 3 | 0 | 0 | 0 | 0 |
 | Responsive | 5 | 0 | 0 | 0 | 0 |
 | E2E | 10 | 0 | 0 | 0 | 0 |
-| **Total** | **112** | **27** | **27** | **0** | **0** |
+| **Total** | **112** | **43** | **43** | **0** | **0** |
 
 Baseline before any Lab 4 change, confirmed on `feature/4-2-Actions-Taken-backend` at
 `lab4-staging`'s tip (`494d1c0`): 188 server + 75 client Vitest, all passing.
@@ -325,6 +326,20 @@ Two deliberate mutation checks confirmed the new tests can fail:
 (the check-then-act race the reviewer found). Run against the pre-fix `app.ts`, both fail: the Action is
 written onto the already-Closed Ticket (`201` / `200`). With the fix, both get `409`. The server suite is
 now 269 (188 + 81), passing twice in a row on a freshly reset database (`toktickit_test`).
+
+**After Issue 4-3:**
+- **Server:** `cd server && npm test` gives 338 passing (188 Lab 1–3 + 150 Lab 4), twice in a row on
+  `toktickit_test`. The new files are `workflow-rules.unit` and `ticket-workflow.api`, plus the shared
+  hand-transcribed `specMatrix.ts`.
+- **Client:** `cd client && npm test` gives 75 passing. The client now sends `version` on status, owner
+  and priority changes, and the tests assert the loaded version is passed through.
+- **Playwright:** `npx playwright test e2e/lab-03` gives 23 passing through the real UI, with the
+  backend pointed at `toktickit_test` so the main dev DB stayed at its 11 seed users.
+
+Three deliberate mutation checks confirmed the new workflow tests can fail:
+- removing the gate fails API-21 (all four sources) and API-32;
+- removing the indication clearing fails API-27;
+- dropping `version` from the status `UPDATE`'s `WHERE` fails API-29 and API-30.
 
 ## 7. Known Limitations or Deferred Tests
 
@@ -382,3 +397,18 @@ Found during implementation:
   it, several test workers try to create it at once and the losers' logins return 500 (12–43 failures).
   It doesn't happen once the table exists, which is why it never showed before. For now the table can be
   created once from `node_modules/connect-pg-simple/table.sql`. Proper fix: Issue 4-6.
+- **Lab 3 tests changed by Issue 4-3, on purpose and only where the Lab 4 contract supersedes Lab 3.**
+  Their assertions are unchanged:
+  1. The calls to the status, owner and priority endpoints in `staff-ticket-detail.api.test.ts` and
+     `requester-regression.api.test.ts` now send the current `version` (BR-22), read through a small
+     `currentVersion` helper. That includes the three that test illegal transitions: a missing
+     `version` is a 400 checked before the 409 state rules (api-spec §0), so without a valid `version`
+     they would test the wrong thing.
+  2. API-39's full forward walk records a Completed Action before its Resolved step (BR-17 gate).
+  3. `status-transition.unit.test.ts`'s own matrix gains the two new Reopened rows from §5.2.
+  4. The client test fixtures gain `version`.
+
+  The client's own Staff status menu (`STAFF_TRANSITIONS`) is deliberately not changed yet. It still
+  offers only the Lab 3 rows, which is safe: it offers fewer moves than the API allows, never more. The
+  two new Reopened options, the disabled "Resolved" reason and the conflict banner are Issue 4-4's UI
+  work.

@@ -41,6 +41,8 @@ function makeTicketDetail(overrides: Partial<TicketDetail> = {}): TicketDetail {
     requestedPriority: "MEDIUM",
     currentStatus: "NEW",
     requesterConfirmedResolvedAt: null,
+    // Issue 4-3 (Lab 4) — BR-22 optimistic-concurrency version; 3 (not 1) so a test can tell it was passed through.
+    version: 3,
     createdAt: "2026-08-24T09:00:00.000Z",
     updatedAt: "2026-08-24T09:00:00.000Z",
     attachments: [],
@@ -131,7 +133,13 @@ describe("TicketDetailPage — Problem Appears Resolved (Issue 3-3, BR-25)", () 
 describe("TicketDetailPage — Requester self-Cancel (Issue 3-7, BR-24)", () => {
   it("cancels a New ticket after the inline confirm step, updating the status badge", async () => {
     vi.spyOn(api, "getTicket").mockResolvedValue(makeTicketDetail({ currentStatus: "NEW" }));
-    vi.spyOn(api, "changeTicketStatus").mockResolvedValue({ id: 1, currentStatus: "CANCELLED", updatedAt: "2026-09-17T00:00:00.000Z" });
+    const changeSpy = vi.spyOn(api, "changeTicketStatus").mockResolvedValue({
+      id: 1,
+      currentStatus: "CANCELLED",
+      version: 4,
+      updatedAt: "2026-09-17T00:00:00.000Z",
+      requesterConfirmedResolvedAt: null,
+    });
     const user = userEvent.setup();
     renderPage();
 
@@ -141,6 +149,8 @@ describe("TicketDetailPage — Requester self-Cancel (Issue 3-7, BR-24)", () => 
 
     await user.click(screen.getByRole("button", { name: /^confirm$/i }));
     expect(await screen.findByText("Cancelled", { selector: ".zg-badge-status-cancelled" })).toBeInTheDocument();
+    // Issue 4-3 (Lab 4) — BR-22: the Cancel sends the version the screen loaded.
+    expect(changeSpy).toHaveBeenCalledWith(1, "CANCELLED", 3);
   });
 
   it("backing out of the confirm step makes no API call", async () => {

@@ -34,6 +34,8 @@ function makeDetail(overrides: Partial<StaffTicketDetail> = {}): StaffTicketDeta
     itPriority: "MEDIUM",
     currentStatus: "NEW",
     requesterConfirmedResolvedAt: null,
+    // Issue 4-3 (Lab 4) — BR-22 optimistic-concurrency version; 3 (not 1) so a test can tell it was passed through.
+    version: 3,
     createdAt: "2026-08-24T09:00:00.000Z",
     updatedAt: "2026-08-24T09:00:00.000Z",
     attachments: [],
@@ -66,14 +68,19 @@ describe("StaffTicketDetailPage", () => {
     vi.spyOn(api, "getStaffTicket").mockResolvedValue(makeDetail({ owner: null }));
     const setOwnerSpy = vi
       .spyOn(api, "setTicketOwner")
-      .mockResolvedValue({ id: 42, owner: { id: STAFF_USER.id, name: STAFF_USER.name, role: "IT_STAFF" } });
+      .mockResolvedValue({
+        id: 42,
+        owner: { id: STAFF_USER.id, name: STAFF_USER.name, role: "IT_STAFF" },
+        version: 4,
+        updatedAt: "2026-09-17T00:00:00.000Z",
+      });
     const user = userEvent.setup();
     renderPage();
 
     const claimButton = await screen.findByRole("button", { name: /claim/i });
     await user.click(claimButton);
 
-    await waitFor(() => expect(setOwnerSpy).toHaveBeenCalledWith(42, STAFF_USER.id));
+    await waitFor(() => expect(setOwnerSpy).toHaveBeenCalledWith(42, STAFF_USER.id, 3)); // Issue 4-3 — sends the loaded version
     expect(await screen.findByText(STAFF_USER.name)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^claim$/i })).not.toBeInTheDocument();
   });

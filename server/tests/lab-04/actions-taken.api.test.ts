@@ -364,7 +364,8 @@ describe("API-12: Action status lifecycle (AC-11, §5.3)", () => {
 describe("API-13: different staff record Actions on one Ticket, in stable order (AC-12, BR-02, BR-13)", () => {
   it("lists every Action by actionAt then id, each with its own performer and assignee, for staff and Requester", async () => {
     const ticket = await createTicket();
-    await staffA.patch(`/api/staff/tickets/${ticket.id}/owner`).send({ ownerId: staffAId });
+    const claim = await staffA.patch(`/api/staff/tickets/${ticket.id}/owner`).send({ ownerId: staffAId, version: 1 });
+    expect(claim.status).toBe(200);
 
     // Planned, so dates ahead of "now" are allowed (BR-07) and the order can be set freely.
     const base = new Date(ticket.createdAt).getTime() + 60 * 60 * 1000;
