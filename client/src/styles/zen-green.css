@@ -262,3 +262,100 @@ body {
   display: flex;
   align-items: center;
 }
+
+/* Issue 4-4 (Lab 4) — docs/lab-04/ui-spec.md §1.1/§1.2. Only existing tokens (and the two hex pairs
+   Lab 3's ui-spec §1.2 already sanctions); no new colors. */
+.zg-badge-action-planned {
+  background-color: var(--zg-info-bg);
+  color: var(--zg-info-text);
+}
+
+.zg-badge-action-in_progress {
+  background-color: #d9ede1;
+  color: var(--zg-secondary);
+}
+
+.zg-badge-action-completed {
+  background-color: var(--zg-pale);
+  color: var(--zg-primary);
+}
+
+.zg-badge-action-cancelled {
+  background-color: var(--zg-neutral-bg);
+  color: var(--zg-neutral-text);
+}
+
+.zg-badge-follow-up {
+  background-color: var(--zg-warning-bg);
+  color: var(--zg-warning);
+}
+
+/* "Requester says resolved" pill (ui-spec.md §1.2) — a sentence, so it may wrap on narrow screens. */
+.zg-requester-indication {
+  display: inline-block;
+  background-color: var(--zg-pale);
+  color: var(--zg-primary);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Actions Taken: a just-saved row is briefly highlighted (ui-spec.md §5.3). */
+@keyframes zg-row-saved {
+  from {
+    background-color: var(--zg-pale);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.zg-row-saved,
+.zg-row-saved > td {
+  animation: zg-row-saved 2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zg-row-saved,
+  .zg-row-saved > td {
+    animation: none;
+  }
+}
+
+/* Long free text (descriptions, results, notes) must wrap rather than widen the table/page. */
+.zg-wrap {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Status History timeline (ui-spec.md §5.4). */
+.zg-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 1rem;
+  border-left: 2px solid var(--zg-border);
+}
+
+.zg-timeline > li {
+  position: relative;
+  padding: 0 0 0.75rem 0.75rem;
+}
+
+.zg-timeline > li::before {
+  content: "";
+  position: absolute;
+  left: calc(-1rem - 6px);
+  top: 0.35rem;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--zg-primary);
+}
+
+/* Focus ring for headings that receive focus programmatically (Action panel), so keyboard users see
+   where focus moved. */
+.zg-focus-target:focus-visible {
+  outline: 2px solid var(--zg-primary);
+  outline-offset: 2px;
+}

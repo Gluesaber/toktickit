@@ -20,10 +20,15 @@ async function runStaffFlow(page: Page, staffName: string, staffEmail: string, s
   await expect(page.getByRole("heading", { name: ticketNumber })).toBeVisible();
 
   // AC-20: Claim an unassigned ticket.
+  // Issue 4-4 (Lab 4) — scoped to the Ownership card. Unscoped, getByText(staffName) also matched the
+  // logged-in user's own name in the header chip, which renders before the Ticket loads: the
+  // "persisted" check could pass without the claim being saved at all, and failed (strict mode, two
+  // matches) whenever the Ticket data arrived first.
+  const ownership = page.locator(".card", { has: page.getByRole("heading", { name: "Ownership" }) });
   await page.getByRole("button", { name: "Claim" }).click();
-  await expect(page.getByText(staffName)).toBeVisible();
+  await expect(ownership.getByText(staffName)).toBeVisible();
   await page.reload();
-  await expect(page.getByText(staffName)).toBeVisible(); // persisted, not just in-memory state
+  await expect(ownership.getByText(staffName)).toBeVisible(); // persisted, not just in-memory state
 
   // AC-23: set IT Priority, independent of Requested Priority.
   await page.getByLabel(/it priority/i).selectOption("URGENT");
@@ -49,7 +54,10 @@ async function runStaffFlow(page: Page, staffName: string, staffEmail: string, s
 async function setupFixture(role: Role, emailPrefix: string) {
   const adminContext = await bootstrapAdminContext();
   const [staff, requesterFixture] = await Promise.all([
-    createReadyUser(adminContext, { name: `E2E ${role} Staffer`, role, emailPrefix }),
+    // Issue 4-4 (Lab 4) — unique per run. With a fixed name, every earlier run's fixture showed up in
+    // the Reassign picker under the same name, and getByText(staffName) went flaky once enough of them
+    // had built up on a long-lived database (it matched 18 elements on toktickit_test).
+    createReadyUser(adminContext, { name: `E2E ${role} Staffer ${Date.now()}`, role, emailPrefix }),
     createReadyRequesterWithTicket(adminContext, `${emailPrefix}-requester`),
   ]);
   await adminContext.dispose();

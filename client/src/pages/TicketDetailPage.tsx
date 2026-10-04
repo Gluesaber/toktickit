@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApiError, Comment, TicketDetail, changeTicketStatus, getTicket, markProblemResolved } from "../api.js";
 import { PriorityBadge, StatusBadge } from "../components/Badges.js";
+import ActionsTakenSection from "../components/ActionsTakenSection.js";
 import AttachmentSection from "../components/AttachmentSection.js";
 import CommentsSection from "../components/CommentsSection.js";
+import StaleBanner from "../components/StaleBanner.js";
+import StatusHistorySection from "../components/StatusHistorySection.js";
 
 // Issue 2-6 (Lab 2) — Requester Ticket Detail: read-only ticket fields + attachments.
 // docs/lab-02/ui-spec.md §6, specification.md FR-12/FR-13, BR-12/BR-40, AC-20/AC-21.
@@ -16,6 +19,8 @@ import CommentsSection from "../components/CommentsSection.js";
 // changeTicketStatus already existed for the Staff detail page to reuse, but no Requester-facing
 // control was ever wired up — ui-spec.md §5 never mentions one either. Found while writing this
 // issue's E2E-07 spec, which needs exactly this action.
+// Issue 4-4 (Lab 4) — adds a read-only Actions Taken card and the Status History timeline
+// (docs/lab-04/ui-spec.md §6, BR-15). Internal Notes still never appear on this screen.
 type LoadState = "loading" | "ready" | "not-found" | "failure";
 const TERMINAL_STATUSES = ["RESOLVED", "CLOSED", "CANCELLED"];
 const CANCELLABLE_STATUSES = ["NEW", "OPEN"]; // BR-24
@@ -29,20 +34,35 @@ export default function TicketDetailPage() {
 
   const [state, setState] = useState<LoadState>("loading");
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
+  // Issue 4-4 (Lab 4) — a Ticket fetch that started before a local change must never overwrite it.
+  // React StrictMode (main.tsx) runs the load effect twice in development, and either fetch can
+  // finish after the user has already acted (found by E2E-03: "Mark Problem as Resolved" was undone
+  // by the slower of the two initial loads). Every fetch takes a sequence number; local changes go
+  // through updateTicket, which bumps it, so any fetch still in flight is ignored when it lands.
+  const loadSeq = useRef(0);
+  function updateTicket(updater: (prev: TicketDetail | null) => TicketDetail | null) {
+    loadSeq.current++;
+    setTicket(updater);
+  }
   const [resolvedBusy, setResolvedBusy] = useState(false);
   const [resolvedError, setResolvedError] = useState<string | null>(null);
   const [cancelPending, setCancelPending] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelStale, setCancelStale] = useState(false);
+  const [reloading, setReloading] = useState(false);
 
   async function load() {
     if (!id) return;
+    const seq = ++loadSeq.current;
     setState("loading");
     try {
       const result = await getTicket(Number(id));
+      if (seq !== loadSeq.current) return; // superseded by a newer fetch or a local change
       setTicket(result);
       setState("ready");
     } catch (err) {
+      if (seq !== loadSeq.current) return;
       if (err instanceof ApiError && err.code === "NOT_FOUND") {
         setState("not-found");
       } else {
@@ -56,8 +76,24 @@ export default function TicketDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // Issue 4-4 (Lab 4) — re-fetch in place after a stale-update conflict, keeping the open confirm step.
+  async function refresh() {
+    if (!id) return;
+    setReloading(true);
+    const seq = ++loadSeq.current;
+    try {
+      const result = await getTicket(Number(id));
+      if (seq === loadSeq.current) setTicket(result);
+      setCancelStale(false);
+    } catch {
+      setCancelError("Unable to reload this ticket. Try again.");
+    } finally {
+      setReloading(false);
+    }
+  }
+
   function handleCommentPosted(comment: Comment) {
-    setTicket((prev) => (prev ? { ...prev, comments: [...prev.comments, comment] } : prev));
+    updateTicket((prev) => (prev ? { ...prev, comments: [...prev.comments, comment] } : prev));
   }
 
   async function handleMarkResolved() {
@@ -66,7 +102,7 @@ export default function TicketDetailPage() {
     setResolvedError(null);
     try {
       const result = await markProblemResolved(ticket.id);
-      setTicket((prev) => (prev ? { ...prev, requesterConfirmedResolvedAt: result.requesterConfirmedResolvedAt } : prev));
+      updateTicket((prev) => (prev ? { ...prev, requesterConfirmedResolvedAt: result.requesterConfirmedResolvedAt } : prev));
     } catch (err) {
       setResolvedError(err instanceof ApiError ? err.message : "Unable to update this ticket.");
     } finally {
@@ -78,12 +114,15 @@ export default function TicketDetailPage() {
     if (!ticket) return;
     setCancelBusy(true);
     setCancelError(null);
+    setCancelStale(false);
     try {
       const result = await changeTicketStatus(ticket.id, "CANCELLED", ticket.version);
-      setTicket((prev) => (prev ? { ...prev, currentStatus: result.currentStatus, version: result.version } : prev));
+      updateTicket((prev) => (prev ? { ...prev, currentStatus: result.currentStatus, version: result.version } : prev));
       setCancelPending(false);
     } catch (err) {
-      setCancelError(err instanceof ApiError ? err.message : "Unable to cancel this ticket.");
+      // Issue 4-4 (Lab 4) — BR-22: IT changed the ticket after this screen loaded it.
+      if (err instanceof ApiError && err.code === "STALE_UPDATE") setCancelStale(true);
+      else setCancelError(err instanceof ApiError ? err.message : "Unable to cancel this ticket.");
     } finally {
       setCancelBusy(false);
     }
@@ -147,6 +186,9 @@ export default function TicketDetailPage() {
                 <div className="text-danger small mb-1" role="alert">
                   {cancelError}
                 </div>
+              )}
+              {cancelStale && (
+                <StaleBanner message="This ticket was just updated by IT. Reload to see the latest." onReload={refresh} reloading={reloading} />
               )}
               {cancelPending ? (
                 <div className="d-flex gap-2 align-items-center">
@@ -269,6 +311,16 @@ export default function TicketDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Issue 4-4 (Lab 4) — read-only Actions Taken (BR-15) and the Status History timeline. */}
+      <ActionsTakenSection
+        ticketId={ticket.id}
+        ticketCreatedAt={ticket.createdAt}
+        ticketStatus={ticket.currentStatus}
+        actions={ticket.actions}
+        mode="requester"
+      />
+      <StatusHistorySection history={ticket.statusHistory} />
 
       {/* Issue 3-3 — Public Comments */}
       <CommentsSection ticketId={ticket.id} comments={ticket.comments} onPosted={handleCommentPosted} />

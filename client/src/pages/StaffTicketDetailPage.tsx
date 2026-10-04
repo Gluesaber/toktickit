@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  ActionTaken,
   ApiError,
   Comment,
   Note,
@@ -13,9 +14,12 @@ import {
   setItPriority as setItPriorityApi,
   changeTicketStatus,
 } from "../api.js";
-import { PriorityBadge, StatusBadge, RoleBadge } from "../components/Badges.js";
+import { PriorityBadge, StatusBadge, RoleBadge, statusLabel } from "../components/Badges.js";
+import ActionsTakenSection from "../components/ActionsTakenSection.js";
 import CommentsSection from "../components/CommentsSection.js";
 import NotesSection from "../components/NotesSection.js";
+import StaleBanner from "../components/StaleBanner.js";
+import StatusHistorySection from "../components/StatusHistorySection.js";
 import { useAuth } from "../context/AuthContext.js";
 
 // Issue 3-5 (Lab 3) — IT Staff Ticket Detail. docs/lab-03/ui-spec.md §7, specification.md
@@ -37,8 +41,18 @@ const STAFF_TRANSITIONS: Record<string, string[]> = {
   RESOLVED: ["CLOSED", "REOPENED"],
   CLOSED: ["REOPENED"],
   CANCELLED: [],
-  REOPENED: ["IN_PROGRESS"],
+  // Issue 4-4 (Lab 4) — docs/lab-04/specification.md §5.2 adds Reopened -> Resolved/Cancelled.
+  REOPENED: ["IN_PROGRESS", "RESOLVED", "CANCELLED"],
 };
+// Issue 4-4 (Lab 4) — BR-17's resolution gate, mirrored for the UI only: "Resolved" stays listed but
+// disabled, with the reason as visible text, until a Completed Action exists. The backend still
+// refuses it on its own (409 RESOLUTION_REQUIRES_COMPLETED_ACTION) if this screen is stale.
+const RESOLUTION_GATE_REASON = "Record at least one completed action before resolving.";
+
+// Keeps the Action list in BR-13's order (actionAt, then id) after a local create/edit.
+function sortActions(actions: ActionTaken[]): ActionTaken[] {
+  return [...actions].sort((a, b) => a.actionAt.localeCompare(b.actionAt) || a.id - b.id);
+}
 // ui-spec.md §7.3: these three targets get a brief inline confirmation before submitting — harder
 // to walk back within Lab 3's scope than the others.
 const CONFIRM_TARGETS = new Set(["CANCELLED", "CLOSED", "RESOLVED"]);
@@ -54,6 +68,16 @@ export default function StaffTicketDetailPage() {
 
   const [state, setState] = useState<LoadState>("loading");
   const [ticket, setTicket] = useState<StaffTicketDetail | null>(null);
+  // Issue 4-4 (Lab 4) — a Ticket fetch that started before a local change must never overwrite it.
+  // React StrictMode (main.tsx) runs the load effect twice in development, and either fetch can
+  // finish after the user has already acted (found by E2E-03: "Mark Problem as Resolved" was undone
+  // by the slower of the two initial loads). Every fetch takes a sequence number; local changes go
+  // through updateTicket, which bumps it, so any fetch still in flight is ignored when it lands.
+  const loadSeq = useRef(0);
+  function updateTicket(updater: (prev: StaffTicketDetail | null) => StaffTicketDetail | null) {
+    loadSeq.current++;
+    setTicket(updater);
+  }
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
 
   const [ownerBusy, setOwnerBusy] = useState(false);
@@ -67,15 +91,23 @@ export default function StaffTicketDetailPage() {
   const [statusError, setStatusError] = useState<string | null>(null);
   const [pendingStatus, setPendingStatus] = useState("");
 
+  // Issue 4-4 (Lab 4) — 409 STALE_UPDATE per card (ui-spec.md §5.2). The user's pending choice is
+  // kept; "Reload ticket" refreshes the record without throwing that choice away.
+  const [stale, setStale] = useState<null | "owner" | "priority" | "status">(null);
+  const [reloading, setReloading] = useState(false);
+
   async function load() {
     if (!id) return;
+    const seq = ++loadSeq.current;
     setState("loading");
     try {
       const [detail, users] = await Promise.all([getStaffTicket(Number(id)), getStaffUsers()]);
+      if (seq !== loadSeq.current) return; // superseded by a newer fetch or a local change
       setTicket(detail);
       setStaffUsers(users);
       setState("ready");
     } catch {
+      if (seq !== loadSeq.current) return;
       setState("failure");
     }
   }
@@ -85,12 +117,39 @@ export default function StaffTicketDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // Issue 4-4 (Lab 4) — re-fetch in place (no "Loading…" swap), so open forms and pending choices
+  // on the page survive a Reload after a stale-update conflict.
+  async function refresh() {
+    if (!id) return;
+    setReloading(true);
+    const seq = ++loadSeq.current;
+    try {
+      const result = await getStaffTicket(Number(id));
+      if (seq === loadSeq.current) setTicket(result);
+      setStale(null);
+    } catch {
+      setStatusError("Unable to reload this ticket. Try again.");
+    } finally {
+      setReloading(false);
+    }
+  }
+
+  function handleActionSaved(action: ActionTaken) {
+    updateTicket((prev) =>
+      prev ? { ...prev, actions: sortActions([...prev.actions.filter((a) => a.id !== action.id), action]) } : prev
+    );
+  }
+
+  function isStale(err: unknown) {
+    return err instanceof ApiError && err.code === "STALE_UPDATE";
+  }
+
   function handleCommentPosted(comment: Comment) {
-    setTicket((prev) => (prev ? { ...prev, comments: [...prev.comments, comment] } : prev));
+    updateTicket((prev) => (prev ? { ...prev, comments: [...prev.comments, comment] } : prev));
   }
 
   function handleNotePosted(note: Note) {
-    setTicket((prev) => (prev ? { ...prev, notes: [...prev.notes, note] } : prev));
+    updateTicket((prev) => (prev ? { ...prev, notes: [...prev.notes, note] } : prev));
   }
 
   async function handleClaim() {
@@ -99,9 +158,10 @@ export default function StaffTicketDetailPage() {
     setOwnerError(null);
     try {
       const result = await setTicketOwner(ticket.id, user.id, ticket.version);
-      setTicket((prev) => (prev ? { ...prev, owner: result.owner, version: result.version, updatedAt: result.updatedAt } : prev));
+      updateTicket((prev) => (prev ? { ...prev, owner: result.owner, version: result.version, updatedAt: result.updatedAt } : prev));
     } catch (err) {
-      setOwnerError(err instanceof ApiError ? err.message : "Unable to claim this ticket.");
+      if (isStale(err)) setStale("owner");
+      else setOwnerError(err instanceof ApiError ? err.message : "Unable to claim this ticket.");
     } finally {
       setOwnerBusy(false);
     }
@@ -113,10 +173,11 @@ export default function StaffTicketDetailPage() {
     setOwnerError(null);
     try {
       const result = await setTicketOwner(ticket.id, Number(reassignTarget), ticket.version);
-      setTicket((prev) => (prev ? { ...prev, owner: result.owner, version: result.version, updatedAt: result.updatedAt } : prev));
+      updateTicket((prev) => (prev ? { ...prev, owner: result.owner, version: result.version, updatedAt: result.updatedAt } : prev));
       setReassignTarget("");
     } catch (err) {
-      setOwnerError(err instanceof ApiError ? err.message : "Unable to reassign this ticket.");
+      if (isStale(err)) setStale("owner"); // reassignTarget is kept for a retry after Reload
+      else setOwnerError(err instanceof ApiError ? err.message : "Unable to reassign this ticket.");
     } finally {
       setOwnerBusy(false);
     }
@@ -128,9 +189,10 @@ export default function StaffTicketDetailPage() {
     setPriorityError(null);
     try {
       const result = await setItPriorityApi(ticket.id, itPriority, ticket.version);
-      setTicket((prev) => (prev ? { ...prev, itPriority, version: result.version, updatedAt: result.updatedAt } : prev));
+      updateTicket((prev) => (prev ? { ...prev, itPriority, version: result.version, updatedAt: result.updatedAt } : prev));
     } catch (err) {
-      setPriorityError(err instanceof ApiError ? err.message : "Unable to update IT Priority.");
+      if (isStale(err)) setStale("priority");
+      else setPriorityError(err instanceof ApiError ? err.message : "Unable to update IT Priority.");
     } finally {
       setPriorityBusy(false);
     }
@@ -144,7 +206,10 @@ export default function StaffTicketDetailPage() {
       const result = await changeTicketStatus(ticket.id, status, ticket.version);
       // Issue 4-3 (Lab 4) — keep the new version for the next write, and pick up the server's
       // clearing of the Requester indication (BR-18) without a reload.
-      setTicket((prev) =>
+      // Issue 4-4 (Lab 4) — FR-08: the Status History card gets the new entry straight away. It is
+      // exactly the row the server just wrote (from, to, this user, the update time), so no
+      // re-fetch is needed; a later reload returns the same entry with its real id.
+      updateTicket((prev) =>
         prev
           ? {
               ...prev,
@@ -152,12 +217,30 @@ export default function StaffTicketDetailPage() {
               version: result.version,
               updatedAt: result.updatedAt,
               requesterConfirmedResolvedAt: result.requesterConfirmedResolvedAt,
+              statusHistory: user
+                ? [
+                    ...prev.statusHistory,
+                    {
+                      id: -Date.now(),
+                      fromStatus: prev.currentStatus,
+                      toStatus: result.currentStatus,
+                      changedBy: { id: user.id, name: user.name, role: user.role },
+                      changedAt: result.updatedAt,
+                    },
+                  ]
+                : prev.statusHistory,
             }
           : prev
       );
       setPendingStatus("");
     } catch (err) {
-      setStatusError(err instanceof ApiError ? err.message : "Unable to update the ticket's status.");
+      if (isStale(err)) {
+        // Keep the choice: after Reload the confirm step is still there to submit again.
+        setStale("status");
+        setPendingStatus(status);
+      } else {
+        setStatusError(err instanceof ApiError ? err.message : "Unable to update the ticket's status.");
+      }
     } finally {
       setStatusBusy(false);
     }
@@ -193,6 +276,8 @@ export default function StaffTicketDetailPage() {
   };
   const reassignCandidates = staffUsers.filter((u) => u.id !== ticket.owner?.id);
   const availableTransitions = STAFF_TRANSITIONS[ticket.currentStatus] ?? [];
+  const resolutionGateMet = ticket.actions.some((a) => a.status === "COMPLETED");
+  const lastHistory = ticket.statusHistory[ticket.statusHistory.length - 1];
 
   return (
     <div>
@@ -293,6 +378,7 @@ export default function StaffTicketDetailPage() {
               {ownerError}
             </div>
           )}
+          {stale === "owner" && <StaleBanner onReload={refresh} reloading={reloading} />}
 
           {!ticket.owner ? (
             <button type="button" className={`btn btn-zg-primary btn-sm${ownerBusy ? " btn-busy" : ""}`} disabled={ownerBusy} onClick={handleClaim}>
@@ -300,8 +386,10 @@ export default function StaffTicketDetailPage() {
             </button>
           ) : (
             <div className="d-flex gap-2 align-items-center flex-wrap">
+              {/* Issue 4-4 (Lab 4) — mw-100: w-auto sizes the select to its longest option, so one long
+                  staff name pushed the whole page sideways at phone width (found at 375px). */}
               <select
-                className="form-select form-select-sm w-auto"
+                className="form-select form-select-sm w-auto mw-100"
                 aria-label="Reassign to"
                 value={reassignTarget}
                 disabled={ownerBusy}
@@ -361,6 +449,11 @@ export default function StaffTicketDetailPage() {
               {priorityError}
             </div>
           )}
+          {stale === "priority" && (
+            <div className="mt-2">
+              <StaleBanner onReload={refresh} reloading={reloading} />
+            </div>
+          )}
         </div>
       </div>
 
@@ -369,8 +462,14 @@ export default function StaffTicketDetailPage() {
       <div className="card mt-3">
         <div className="card-body">
           <h2 className="h6 card-title">Status</h2>
-          <div className="mb-2">
+          <div className="mb-2 d-flex flex-wrap align-items-center gap-2">
             <StatusBadge status={ticket.currentStatus} />
+            {/* Issue 4-4 (Lab 4) — FR-10: the Requester's advisory indication, finally visible to staff. */}
+            {ticket.requesterConfirmedResolvedAt && (
+              <span className="zg-requester-indication">
+                Requester says resolved · {formatDateTime(ticket.requesterConfirmedResolvedAt)}
+              </span>
+            )}
           </div>
 
           {statusError && (
@@ -378,6 +477,7 @@ export default function StaffTicketDetailPage() {
               {statusError}
             </div>
           )}
+          {stale === "status" && <StaleBanner onReload={refresh} reloading={reloading} />}
 
           {pendingStatus ? (
             <div className="d-flex gap-2 align-items-center flex-wrap">
@@ -397,23 +497,47 @@ export default function StaffTicketDetailPage() {
           ) : availableTransitions.length === 0 ? (
             <p className="text-muted small mb-0">No further status changes are available.</p>
           ) : (
-            <select
-              className="form-select form-select-sm w-auto"
-              aria-label="Change status"
-              value=""
-              disabled={statusBusy}
-              onChange={(e) => handleStatusSelect(e.target.value)}
-            >
-              <option value="">Change status to…</option>
-              {availableTransitions.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+            <>
+              <select
+                className="form-select form-select-sm w-auto mw-100"
+                aria-label="Change status"
+                aria-describedby={availableTransitions.includes("RESOLVED") && !resolutionGateMet ? "status-gate-reason" : undefined}
+                value=""
+                disabled={statusBusy}
+                onChange={(e) => handleStatusSelect(e.target.value)}
+              >
+                <option value="">Change status to…</option>
+                {availableTransitions.map((s) => (
+                  <option key={s} value={s} disabled={s === "RESOLVED" && !resolutionGateMet}>
+                    {statusLabel(s)}
+                    {s === "RESOLVED" && !resolutionGateMet ? " (needs a completed action)" : ""}
+                  </option>
+                ))}
+              </select>
+              {availableTransitions.includes("RESOLVED") && !resolutionGateMet && (
+                <div id="status-gate-reason" className="form-text">
+                  {RESOLUTION_GATE_REASON}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
+
+      {/* Issue 4-4 (Lab 4) — Actions Taken (ui-spec.md §5.3) and Status History (§5.4). */}
+      <ActionsTakenSection
+        ticketId={ticket.id}
+        ticketCreatedAt={ticket.createdAt}
+        ticketStatus={ticket.currentStatus}
+        actions={ticket.actions}
+        mode="staff"
+        staffUsers={staffUsers}
+        currentUser={user}
+        reopened={lastHistory?.toStatus === "REOPENED" && ticket.currentStatus === "REOPENED"}
+        onSaved={handleActionSaved}
+        onReload={refresh}
+      />
+      <StatusHistorySection history={ticket.statusHistory} />
 
       {/* Public Comments — identical component to Requester Ticket Detail, reused verbatim
           (ui-spec.md §7.4). */}

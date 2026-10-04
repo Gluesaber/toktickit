@@ -36,6 +36,8 @@ function makeDetail(overrides: Partial<StaffTicketDetail> = {}): StaffTicketDeta
     requesterConfirmedResolvedAt: null,
     // Issue 4-3 (Lab 4) — BR-22 optimistic-concurrency version; 3 (not 1) so a test can tell it was passed through.
     version: 3,
+    actions: [], // Issue 4-4 (Lab 4)
+    statusHistory: [],
     createdAt: "2026-08-24T09:00:00.000Z",
     updatedAt: "2026-08-24T09:00:00.000Z",
     attachments: [],
@@ -122,7 +124,8 @@ describe("StaffTicketDetailPage", () => {
     RESOLVED: ["CLOSED", "REOPENED"],
     CLOSED: ["REOPENED"],
     CANCELLED: [],
-    REOPENED: ["IN_PROGRESS"],
+    // Issue 4-4 (Lab 4) — docs/lab-04/specification.md §5.2 supersedes Lab 3's matrix here.
+    REOPENED: ["IN_PROGRESS", "RESOLVED", "CANCELLED"],
   };
 
   it.each(Object.entries(SPEC_STAFF_TRANSITIONS))(

@@ -64,7 +64,9 @@ test("Requester: create tickets, comment, mark resolved, cancel a different tick
   // AC-15: mark Problem Appears Resolved on Ticket A — informational only, status stays New.
   await page.getByRole("button", { name: "Mark Problem as Resolved" }).click();
   await expect(page.getByText(/you indicated this problem appears resolved/i)).toBeVisible();
-  await expect(page.getByText("New", { exact: true })).toBeVisible();
+  // Issue 4-4 (Lab 4) — the page now also shows status badges in the Status History card ("Created
+  // as New"), so the header badge (first in the page) is targeted explicitly, as staff-ticket-flow does.
+  await expect(page.getByText("New", { exact: true }).first()).toBeVisible();
 
   // AC-25: cancel Ticket B — a different, still-New ticket, via the inline confirm step.
   await page.getByRole("link", { name: "Back to My Tickets" }).click();
@@ -72,7 +74,7 @@ test("Requester: create tickets, comment, mark resolved, cancel a different tick
   await expect(page.getByRole("heading", { name: ticketB })).toBeVisible();
   await page.getByRole("button", { name: "Cancel Ticket" }).click();
   await page.getByRole("button", { name: "Confirm" }).click();
-  await expect(page.getByText("Cancelled", { exact: true })).toBeVisible();
+  await expect(page.getByText("Cancelled", { exact: true }).first()).toBeVisible();
 
   // Final check: My Tickets still shows exactly these two, scoping intact throughout, B now
   // Cancelled and A still New.
