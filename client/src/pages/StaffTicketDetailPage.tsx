@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import {
   ActionTaken,
   ApiError,
@@ -65,6 +65,7 @@ function formatDateTime(iso: string): string {
 export default function StaffTicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const location = useLocation();
 
   const [state, setState] = useState<LoadState>("loading");
   const [ticket, setTicket] = useState<StaffTicketDetail | null>(null);
@@ -116,6 +117,14 @@ export default function StaffTicketDetailPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Issue 4-5 (Lab 4) — the dashboard's "My work" rows link to /queue/:id#actions. The card only
+  // exists once the Ticket has loaded, so the browser's own hash scroll can't find it; do it here.
+  useEffect(() => {
+    if (state === "ready" && location.hash === "#actions") {
+      document.getElementById("actions")?.scrollIntoView({ block: "start" });
+    }
+  }, [state, location.hash]);
 
   // Issue 4-4 (Lab 4) — re-fetch in place (no "Loading…" swap), so open forms and pending choices
   // on the page survive a Reload after a stale-update conflict.

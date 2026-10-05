@@ -11,6 +11,9 @@ async function runStaffFlow(page: Page, staffName: string, staffEmail: string, s
   await page.getByLabel("Email").fill(staffEmail);
   await page.getByLabel("Password").fill(staffPassword);
   await page.getByRole("button", { name: "Log In" }).click();
+  // Issue 4-5 (Lab 4) — every role now lands on its Dashboard after login (FR-15).
+  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+  await page.getByLabel("Primary").getByRole("link", { name: "Ticket Queue" }).click();
   await expect(page.getByRole("heading", { name: "Ticket Queue" })).toBeVisible();
 
   // Open the Queue, find the fixture ticket, open its detail.

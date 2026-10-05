@@ -108,6 +108,8 @@ for (const [viewportName, viewportSize] of Object.entries(VIEWPORTS)) {
     // RESP-01 (AC-34)
     test("Ticket Queue — no horizontal scroll, card layout on mobile", async ({ page }) => {
       await loginAs(page, admin.email, admin.password);
+      // Issue 4-5 (Lab 4) — every role now lands on its Dashboard after login (FR-15).
+      await page.goto("/queue");
       await expect(page.getByRole("heading", { name: "Ticket Queue" })).toBeVisible();
       await assertNoHorizontalOverflow(page);
 
@@ -125,7 +127,9 @@ for (const [viewportName, viewportSize] of Object.entries(VIEWPORTS)) {
     test("User Management — no horizontal scroll, card layout on mobile", async ({ page }) => {
       await loginAs(page, admin.email, admin.password);
       await openNavIfCollapsed(page);
-      await page.getByRole("link", { name: "User Management" }).click();
+      // Issue 4-5 (Lab 4) — scoped to the Primary nav: the Admin dashboard (now the landing page) has
+      // its own "User Management" Quick Action link.
+      await page.getByLabel("Primary").getByRole("link", { name: "User Management" }).click();
       await expect(page.getByRole("heading", { name: "User Management" })).toBeVisible();
       await assertNoHorizontalOverflow(page);
 
@@ -143,6 +147,8 @@ for (const [viewportName, viewportSize] of Object.entries(VIEWPORTS)) {
     // baseline shot; the specific column-alignment assertion only applies at tablet width).
     test("Staff Ticket Detail — no horizontal scroll, tablet keeps the two-column classification row", async ({ page }) => {
       await loginAs(page, admin.email, admin.password);
+      // Issue 4-5 (Lab 4) — login lands on the Dashboard now; the Queue is where the search box is.
+      await page.goto("/queue");
       await page.getByLabel(/^search/i).fill(ticketNumber);
       await page.getByRole("link", { name: ticketNumber }).first().click();
       await expect(page.getByRole("heading", { name: ticketNumber })).toBeVisible();

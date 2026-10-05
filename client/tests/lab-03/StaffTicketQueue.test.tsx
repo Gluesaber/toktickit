@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import StaffTicketQueuePage from "../../src/pages/StaffTicketQueuePage.js";
+import { AuthProvider } from "../../src/context/AuthContext.js";
 import * as api from "../../src/api.js";
 import type { StaffTicketListItem, StaffTicketListResponse } from "../../src/api.js";
 
@@ -10,10 +11,14 @@ import type { StaffTicketListItem, StaffTicketListResponse } from "../../src/api
 
 const CATEGORIES = [{ id: 1, name: "Hardware" }];
 
+// Issue 4-5 (Lab 4) — the Queue now reads its filters from the URL and knows who's logged in (for
+// the owner filter's "(me)" option), so it renders inside the router and AuthProvider like the app.
 function renderPage() {
   return render(
     <MemoryRouter>
-      <StaffTicketQueuePage />
+      <AuthProvider>
+        <StaffTicketQueuePage />
+      </AuthProvider>
     </MemoryRouter>
   );
 }
@@ -43,6 +48,7 @@ function makeTicket(overrides: Partial<StaffTicketListItem> = {}): StaffTicketLi
     itPriority: "MEDIUM",
     currentStatus: "NEW",
     owner: null,
+    requesterConfirmedResolvedAt: null, // Issue 4-5 (Lab 4)
     createdAt: "2026-08-24T09:00:00.000Z",
     updatedAt: "2026-08-24T09:00:00.000Z",
     ...overrides,
@@ -52,6 +58,15 @@ function makeTicket(overrides: Partial<StaffTicketListItem> = {}): StaffTicketLi
 describe("StaffTicketQueuePage", () => {
   beforeEach(() => {
     vi.spyOn(api, "getCategories").mockResolvedValue(CATEGORIES);
+    vi.spyOn(api, "getStaffUsers").mockResolvedValue([]); // Issue 4-5 — owner filter options
+    vi.spyOn(api, "getMe").mockResolvedValue({
+      id: 10,
+      name: "Taylor Brooks",
+      email: "taylor.brooks@example.test",
+      role: "IT_STAFF",
+      isActive: true,
+      mustChangePassword: false,
+    });
   });
 
   // UI-14 (AC-19)

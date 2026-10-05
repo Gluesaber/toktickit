@@ -1,7 +1,18 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { Category, SortDir, StaffSortField, StaffTicketListItem, getCategories, getStaffTickets } from "../api.js";
-import { PriorityBadge, StatusBadge, RoleBadge } from "../components/Badges.js";
+import { useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import {
+  Category,
+  SortDir,
+  StaffSortField,
+  StaffTicketListItem,
+  StaffUser,
+  getCategories,
+  getStaffTickets,
+  getStaffUsers,
+} from "../api.js";
+import { PriorityBadge, StatusBadge, RoleBadge, statusLabel } from "../components/Badges.js";
+import { useAuth } from "../context/AuthContext.js";
+import { INVALID_LINK_NOTICE, ParamSpec, isPositiveInt, parseFilterParams, useUrlFilterSync } from "../urlFilters.js";
 
 // Issue 3-4 (Lab 3) — the Staff Ticket Queue: search/filter/sort/pagination over every Ticket,
 // regardless of Requester. docs/lab-03/ui-spec.md §6, specification.md FR-10/FR-11, AC-16/AC-18/AC-19.
@@ -18,6 +29,26 @@ const SORT_OPTIONS: { value: StaffSortField; label: string }[] = [
 // them until Issue 3-5's transition endpoint. Listed anyway so the filter is honest about what the
 // backend already accepts, rather than hiding options that will start working once 3-5 ships.
 const STATUS_OPTIONS = ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLVED", "CLOSED", "CANCELLED", "REOPENED"];
+const PRIORITY_VALUES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
+
+// Issue 4-5 (Lab 4) — every filter, the sort and the page live in the URL (ui-spec.md §4, FR-16), so
+// a dashboard drill-down such as /queue?ownerId=unassigned&statusGroup=open opens pre-filtered and
+// its total matches the card. The Status <select> folds statusGroup=open in as "All open".
+const OPEN_GROUP = "group:open";
+const QUEUE_PARAMS: ParamSpec = {
+  search: {},
+  statusGroup: { allowed: ["open"] },
+  currentStatus: { allowed: STATUS_OPTIONS },
+  requestedPriority: { allowed: PRIORITY_VALUES },
+  itPriority: { allowed: PRIORITY_VALUES },
+  ownerId: { test: (v) => v === "unassigned" || isPositiveInt(v) },
+  categoryId: { test: isPositiveInt },
+  requesterResolved: { allowed: ["true"] },
+  sortBy: { allowed: ["createdAt", "currentStatus", "itPriority", "updatedAt"] },
+  sortDir: { allowed: ["asc", "desc"] },
+  page: { test: isPositiveInt },
+  pageSize: { allowed: ["10", "25", "50"] },
+};
 
 type RefDataState = "loading" | "ready" | "failure";
 type ListState = "loading" | "ready" | "failure";
@@ -27,23 +58,82 @@ function formatDate(iso: string): string {
 }
 
 export default function StaffTicketQueuePage() {
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const [initial] = useState(() => parseFilterParams(searchParams, QUEUE_PARAMS));
+  const init = initial.values;
+
   const [refDataState, setRefDataState] = useState<RefDataState>("loading");
   const [categories, setCategories] = useState<Category[]>([]);
+  const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
+  const [linkNotice, setLinkNotice] = useState(initial.invalid);
 
-  const [searchInput, setSearchInput] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState("");
-  const [itPriorityFilter, setItPriorityFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  // Simple two-option filter (All / Unassigned) rather than a per-owner picker: nothing can set an
-  // owner until Issue 3-5 exists, so every Ticket is unassigned for this issue's entire lifespan —
-  // a "filter by specific staff member" control would have nothing to filter by yet.
-  const [ownerFilter, setOwnerFilter] = useState("");
-  const [sortBy, setSortBy] = useState<StaffSortField>("createdAt");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [searchInput, setSearchInput] = useState(init.search ?? "");
+  const [debouncedSearch, setDebouncedSearch] = useState(init.search ?? "");
+  const [categoryFilter, setCategoryFilter] = useState(init.categoryId ?? "");
+  const [priorityFilter, setPriorityFilter] = useState(init.requestedPriority ?? "");
+  const [itPriorityFilter, setItPriorityFilter] = useState(init.itPriority ?? "");
+  const [statusFilter, setStatusFilter] = useState(init.statusGroup ? OPEN_GROUP : init.currentStatus ?? "");
+  // Issue 4-5 (Lab 4) — All / Unassigned / a specific staff member (the Lab 3 control only offered
+  // Unassigned, from before tickets could have owners); needed for the "My open tickets" drill-down.
+  const [ownerFilter, setOwnerFilter] = useState(init.ownerId ?? "");
+  const [requesterResolvedFilter, setRequesterResolvedFilter] = useState(init.requesterResolved === "true");
+  const [sortBy, setSortBy] = useState<StaffSortField>((init.sortBy as StaffSortField) ?? "createdAt");
+  const [sortDir, setSortDir] = useState<SortDir>((init.sortDir as SortDir) ?? "desc");
+  const [page, setPage] = useState(init.page ? Number(init.page) : 1);
+  const [pageSize, setPageSize] = useState(init.pageSize ? Number(init.pageSize) : 10);
+  // "Back to page 1 when the filters change" must not undo a page number that came from the URL (on
+  // first render, or when back/forward changed the URL). So a filter set that came from the URL is
+  // remembered, and only a *different* one resets the page.
+  const filterKey = [debouncedSearch, categoryFilter, priorityFilter, itPriorityFilter, statusFilter, ownerFilter, requesterResolvedFilter, sortBy, sortDir, pageSize].join("|");
+  const urlFilterKey = useRef<string | null>(filterKey);
+
+  function applyFromUrl(values: Record<string, string>, invalid: boolean) {
+    urlFilterKey.current = [
+      values.search ?? "",
+      values.categoryId ?? "",
+      values.requestedPriority ?? "",
+      values.itPriority ?? "",
+      values.statusGroup ? OPEN_GROUP : values.currentStatus ?? "",
+      values.ownerId ?? "",
+      values.requesterResolved === "true",
+      values.sortBy ?? "createdAt",
+      values.sortDir ?? "desc",
+      values.pageSize ? Number(values.pageSize) : 10,
+    ].join("|");
+    setSearchInput(values.search ?? "");
+    setDebouncedSearch(values.search ?? "");
+    setCategoryFilter(values.categoryId ?? "");
+    setPriorityFilter(values.requestedPriority ?? "");
+    setItPriorityFilter(values.itPriority ?? "");
+    setStatusFilter(values.statusGroup ? OPEN_GROUP : values.currentStatus ?? "");
+    setOwnerFilter(values.ownerId ?? "");
+    setRequesterResolvedFilter(values.requesterResolved === "true");
+    setSortBy((values.sortBy as StaffSortField) ?? "createdAt");
+    setSortDir((values.sortDir as SortDir) ?? "desc");
+    setPage(values.page ? Number(values.page) : 1);
+    setPageSize(values.pageSize ? Number(values.pageSize) : 10);
+    setLinkNotice(invalid);
+  }
+
+  useUrlFilterSync(
+    {
+      search: debouncedSearch,
+      statusGroup: statusFilter === OPEN_GROUP ? "open" : "",
+      currentStatus: statusFilter === OPEN_GROUP ? "" : statusFilter,
+      requestedPriority: priorityFilter,
+      itPriority: itPriorityFilter,
+      ownerId: ownerFilter,
+      categoryId: categoryFilter,
+      requesterResolved: requesterResolvedFilter ? "true" : "",
+      sortBy: sortBy === "createdAt" ? "" : sortBy,
+      sortDir: sortDir === "desc" ? "" : sortDir,
+      page: page > 1 ? String(page) : "",
+      pageSize: pageSize === 10 ? "" : String(pageSize),
+    },
+    QUEUE_PARAMS,
+    applyFromUrl
+  );
 
   const [listState, setListState] = useState<ListState>("loading");
   const [tickets, setTickets] = useState<StaffTicketListItem[]>([]);
@@ -58,14 +148,17 @@ export default function StaffTicketQueuePage() {
   }, [searchInput]);
 
   useEffect(() => {
+    if (filterKey === urlFilterKey.current) return; // these filters came from the URL, keep its page
+    urlFilterKey.current = null;
     setPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, categoryFilter, priorityFilter, itPriorityFilter, statusFilter, ownerFilter, sortBy, sortDir, pageSize]);
+  }, [filterKey]);
 
   async function loadReferenceData() {
     setRefDataState("loading");
     try {
-      setCategories(await getCategories());
+      const [categoryList, users] = await Promise.all([getCategories(), getStaffUsers()]);
+      setCategories(categoryList);
+      setStaffUsers(users);
       setRefDataState("ready");
     } catch {
       setRefDataState("failure");
@@ -85,8 +178,10 @@ export default function StaffTicketQueuePage() {
         categoryId: categoryFilter ? Number(categoryFilter) : undefined,
         requestedPriority: priorityFilter ? (priorityFilter as never) : undefined,
         itPriority: itPriorityFilter ? (itPriorityFilter as never) : undefined,
-        currentStatus: statusFilter || undefined,
-        ownerId: ownerFilter === "unassigned" ? "unassigned" : undefined,
+        currentStatus: statusFilter && statusFilter !== OPEN_GROUP ? statusFilter : undefined,
+        statusGroup: statusFilter === OPEN_GROUP ? "open" : undefined,
+        ownerId: ownerFilter === "unassigned" ? "unassigned" : ownerFilter ? Number(ownerFilter) : undefined,
+        requesterResolved: requesterResolvedFilter || undefined,
         sortBy,
         sortDir,
         page,
@@ -106,10 +201,10 @@ export default function StaffTicketQueuePage() {
   useEffect(() => {
     loadTickets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, categoryFilter, priorityFilter, itPriorityFilter, statusFilter, ownerFilter, sortBy, sortDir, page, pageSize]);
+  }, [debouncedSearch, categoryFilter, priorityFilter, itPriorityFilter, statusFilter, ownerFilter, requesterResolvedFilter, sortBy, sortDir, page, pageSize]);
 
   const hasActiveFilters = Boolean(
-    debouncedSearch || categoryFilter || priorityFilter || itPriorityFilter || statusFilter || ownerFilter
+    debouncedSearch || categoryFilter || priorityFilter || itPriorityFilter || statusFilter || ownerFilter || requesterResolvedFilter
   );
 
   function clearFilters() {
@@ -119,11 +214,33 @@ export default function StaffTicketQueuePage() {
     setItPriorityFilter("");
     setStatusFilter("");
     setOwnerFilter("");
+    setRequesterResolvedFilter(false);
+    setLinkNotice(false);
   }
+
+  // ui-spec.md §4 — "Showing: All open · Unassigned" next to Clear filters, so a drill-down's applied
+  // filters are visible at a glance.
+  const ownerName = (id: string) =>
+    id === "unassigned" ? "Unassigned" : id === String(user?.id) ? "Owned by me" : `Owned by ${staffUsers.find((u) => String(u.id) === id)?.name ?? `user #${id}`}`;
+  const filterSummary = [
+    debouncedSearch ? `"${debouncedSearch}"` : "",
+    statusFilter === OPEN_GROUP ? "All open" : statusFilter ? statusLabel(statusFilter) : "",
+    ownerFilter ? ownerName(ownerFilter) : "",
+    itPriorityFilter ? `IT Priority ${itPriorityFilter.toLowerCase()}` : "",
+    priorityFilter ? `Requested ${priorityFilter.toLowerCase()}` : "",
+    categoryFilter ? categories.find((c) => String(c.id) === categoryFilter)?.name ?? "Category" : "",
+    requesterResolvedFilter ? "Requester says resolved" : "",
+  ].filter(Boolean);
 
   return (
     <div>
       <h1 className="h4 mb-4">Ticket Queue</h1>
+
+      {linkNotice && (
+        <div className="alert alert-info py-2 small" role="status">
+          {INVALID_LINK_NOTICE}
+        </div>
+      )}
 
       {refDataState === "failure" && (
         <div className="alert alert-danger" role="alert">
@@ -178,9 +295,10 @@ export default function StaffTicketQueuePage() {
             onChange={(e) => setStatusFilter(e.target.value)}
           >
             <option value="">All</option>
+            <option value={OPEN_GROUP}>All open</option>
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {statusLabel(s)}
               </option>
             ))}
           </select>
@@ -231,10 +349,34 @@ export default function StaffTicketQueuePage() {
           >
             <option value="">All</option>
             <option value="unassigned">Unassigned</option>
+            {staffUsers.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.id === user?.id ? `${u.name} (me)` : u.name}
+              </option>
+            ))}
+            {/* An owner from a link who isn't in the active-staff list (e.g. since deactivated). */}
+            {ownerFilter && ownerFilter !== "unassigned" && !staffUsers.some((u) => String(u.id) === ownerFilter) && (
+              <option value={ownerFilter}>{ownerName(ownerFilter)}</option>
+            )}
           </select>
         </div>
+        <div className="col-12 col-md-auto">
+          <div className="form-check mt-md-4">
+            <input
+              id="queue-filter-requester-resolved"
+              type="checkbox"
+              className="form-check-input"
+              checked={requesterResolvedFilter}
+              onChange={(e) => setRequesterResolvedFilter(e.target.checked)}
+            />
+            <label htmlFor="queue-filter-requester-resolved" className="form-check-label small">
+              Requester says resolved
+            </label>
+          </div>
+        </div>
         {hasActiveFilters && (
-          <div className="col-12">
+          <div className="col-12 d-flex flex-wrap align-items-center gap-2">
+            <span className="small text-muted">Showing: {filterSummary.join(" · ")}</span>
             <button type="button" className="btn btn-link p-0" onClick={clearFilters}>
               Clear filters
             </button>
@@ -335,6 +477,11 @@ export default function StaffTicketQueuePage() {
                     </td>
                     <td>
                       <StatusBadge status={t.currentStatus} />
+                      {t.requesterConfirmedResolvedAt && (
+                        <div>
+                          <span className="zg-requester-indication mt-1">Requester says resolved</span>
+                        </div>
+                      )}
                     </td>
                     <td>
                       {t.owner ? (
@@ -363,6 +510,7 @@ export default function StaffTicketQueuePage() {
                   <StatusBadge status={t.currentStatus} />
                 </div>
                 <p className="mb-2">{t.summary}</p>
+                {t.requesterConfirmedResolvedAt && <span className="zg-requester-indication mb-1">Requester says resolved</span>}
                 <div className="small text-muted mb-1">Requested by {t.requesterName}</div>
                 <div className="d-flex justify-content-between align-items-center mb-1">
                   <PriorityBadge priority={t.itPriority} />

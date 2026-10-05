@@ -8,10 +8,10 @@ import {
   needsResolutionGate,
   type TransitionRole,
 } from "../../src/statusTransitions.js";
+import { recentWindowStart } from "../../src/dashboard.js";
 
-// docs/lab-04/tests.md §2.2 — UNIT-04, UNIT-05, UNIT-07. (UNIT-06, the Asia/Bangkok window start, is a
-// dashboard rule and lands with Issue 4-5.) The §5.2 matrix comes from ./specMatrix.ts, an independent
-// hand transcription of the spec.
+// docs/lab-04/tests.md §2.2 — UNIT-04..07 (UNIT-06, the Asia/Bangkok window start, added in Issue 4-5).
+// The §5.2 matrix comes from ./specMatrix.ts, an independent hand transcription of the spec.
 const isListed = (from: TicketStatus, to: TicketStatus, role: TransitionRole) =>
   LAB4_MATRIX.some((r) => r.from === from && r.to === to && r.roles.includes(role));
 
@@ -59,5 +59,27 @@ describe("UNIT-07: Requester indication clearing rule (BR-18)", () => {
     for (const to of ALL_STATUSES) {
       expect(clearsRequesterIndication(to)).toBe(to === "IN_PROGRESS" || to === "REOPENED");
     }
+  });
+});
+
+describe("UNIT-06: the dashboards' recent window, in Asia/Bangkok (BR-29)", () => {
+  // Bangkok is UTC+7 all year, so local midnight is 17:00 UTC the day before.
+  it.each([
+    // [now (UTC), expected windowStart (UTC)]
+    ["2026-10-05T05:00:00.000Z", "2026-09-28T17:00:00.000Z"], // api-spec.md §5's own example
+    ["2026-10-05T16:59:59.999Z", "2026-09-28T17:00:00.000Z"], // 23:59:59 Bangkok, still Oct 5
+    ["2026-10-05T17:00:00.000Z", "2026-09-29T17:00:00.000Z"], // 00:00 Bangkok, now Oct 6
+    ["2026-03-03T01:00:00.000Z", "2026-02-24T17:00:00.000Z"], // window crosses a month boundary
+    ["2027-01-02T12:00:00.000Z", "2026-12-26T17:00:00.000Z"], // and a year boundary
+  ])("now %s -> window starts %s", (now, expected) => {
+    expect(recentWindowStart(new Date(now)).toISOString()).toBe(expected);
+  });
+
+  it("always spans exactly seven Bangkok calendar days including today", () => {
+    const now = new Date("2026-10-05T05:00:00.000Z");
+    const start = recentWindowStart(now);
+    const days = (now.getTime() - start.getTime()) / (24 * 60 * 60 * 1000);
+    expect(days).toBeGreaterThan(6);
+    expect(days).toBeLessThanOrEqual(7);
   });
 });

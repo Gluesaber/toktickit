@@ -24,6 +24,7 @@ import {
   validateActionDraft,
   type FieldErrors,
 } from "./actionRules.js";
+import { OPEN_STATUSES, requesterDashboard, staffDashboard } from "./dashboard.js";
 import {
   createSessionMiddleware,
   hashPassword,
@@ -287,7 +288,28 @@ app.get("/api/related-systems", ...requireFullAuth, async (_req: Request, res: R
 // authenticated session determines whose tickets these are. A `requesterId` in the query string is
 // simply not read anymore, not validated-and-ignored — there's no code path left that looks at it.
 // ---------------------------------------------------------------------------
-const SORTABLE_FIELDS = ["createdAt", "ticketNumber", "currentStatus", "requestedPriority"] as const;
+// Issue 4-5 (Lab 4) — `updatedAt` added for the Requester Dashboard's "Updated in the last 7 days"
+// drill-down (docs/lab-04/api-spec.md §4).
+const SORTABLE_FIELDS = ["createdAt", "ticketNumber", "currentStatus", "requestedPriority", "updatedAt"] as const;
+
+// Issue 4-5 (Lab 4) — `statusGroup=open` (BR-27) on both list endpoints, so a dashboard card's
+// drill-down opens exactly the Tickets it counted. Only "open" exists; anything else is a 400, like
+// every other fixed-choice filter. Returns undefined when absent.
+function parseStatusGroup(raw: unknown, fields: Record<string, string>): "open" | undefined {
+  if (typeof raw !== "string" || raw === "") return undefined;
+  if (raw !== "open") {
+    fields.statusGroup = 'statusGroup must be "open".';
+    return undefined;
+  }
+  return "open";
+}
+
+// AND-combines a single-status filter with the open group: `currentStatus=RESOLVED&statusGroup=open`
+// is a valid request that simply matches nothing.
+function statusWhere(status: TicketStatus | undefined, group: "open" | undefined) {
+  if (!status && !group) return undefined;
+  return { ...(status ? { equals: status } : {}), ...(group ? { in: OPEN_STATUSES } : {}) };
+}
 type SortableField = (typeof SORTABLE_FIELDS)[number];
 // Issue 3-4 (Lab 3) — extended to all 8 values now that the enum has them (schema.prisma). A
 // Requester filtering their own list by OPEN/WAITING_FOR_REQUESTER just gets zero matches today
@@ -346,6 +368,8 @@ app.get("/api/tickets", ...requireFullAuth, async (req: Request, res: Response) 
     }
   }
 
+  const statusGroup = parseStatusGroup(q.statusGroup, fields);
+
   const sortByRaw = typeof q.sortBy === "string" && q.sortBy !== "" ? q.sortBy : "createdAt";
   if (!SORTABLE_FIELDS.includes(sortByRaw as SortableField)) {
     fields.sortBy = "Invalid sortBy value.";
@@ -375,7 +399,8 @@ app.get("/api/tickets", ...requireFullAuth, async (req: Request, res: Response) 
   if (categoryId !== undefined) where.categoryId = categoryId;
   if (relatedSystemId !== undefined) where.relatedSystemId = relatedSystemId;
   if (priority) where.requestedPriority = priority;
-  if (status) where.currentStatus = status;
+  const currentStatusFilter = statusWhere(status, statusGroup);
+  if (currentStatusFilter) where.currentStatus = currentStatusFilter;
   if (search) {
     where.OR = [
       { ticketNumber: { contains: search, mode: "insensitive" } },
@@ -1144,6 +1169,15 @@ app.get(
       }
     }
 
+    // Issue 4-5 (Lab 4) — drill-down filters (api-spec.md §4). `requesterResolved` accepts only
+    // "true": "Tickets the Requester says are resolved".
+    const statusGroup = parseStatusGroup(q.statusGroup, fields);
+    let requesterResolved = false;
+    if (typeof q.requesterResolved === "string" && q.requesterResolved !== "") {
+      if (q.requesterResolved === "true") requesterResolved = true;
+      else fields.requesterResolved = 'requesterResolved must be "true".';
+    }
+
     const sortByRaw = typeof q.sortBy === "string" && q.sortBy !== "" ? q.sortBy : "createdAt";
     if (!STAFF_SORTABLE_FIELDS.includes(sortByRaw as StaffSortableField)) {
       fields.sortBy = "Invalid sortBy value.";
@@ -1174,8 +1208,10 @@ app.get(
     if (categoryId !== undefined) where.categoryId = categoryId;
     if (priority) where.requestedPriority = priority;
     if (itPriority) where.itPriority = itPriority;
-    if (status) where.currentStatus = status;
+    const currentStatusFilter = statusWhere(status, statusGroup);
+    if (currentStatusFilter) where.currentStatus = currentStatusFilter;
     if (ownerId !== undefined) where.ownerId = ownerId;
+    if (requesterResolved) where.requesterConfirmedResolvedAt = { not: null };
     if (search) {
       where.OR = [
         { ticketNumber: { contains: search, mode: "insensitive" } },
@@ -1213,6 +1249,7 @@ app.get(
         itPriority: t.itPriority,
         currentStatus: t.currentStatus,
         owner: t.owner ? { id: t.owner.id, name: t.owner.name, role: t.owner.role } : null,
+        requesterConfirmedResolvedAt: t.requesterConfirmedResolvedAt, // Issue 4-5 — queue-row pill
         createdAt: t.createdAt,
         updatedAt: t.updatedAt,
       }));
@@ -1818,6 +1855,35 @@ app.patch(
       res.status(200).json(formatAction(current));
     } catch {
       res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to update the action." } });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Issue 4-5 (Lab 4) — Dashboards. docs/lab-04/api-spec.md §5; every metric's definition is in
+// src/dashboard.ts (specification.md §5.5). Read-only, no query parameters. The Requester
+// dashboard takes the Requester's id from the session only (BR-30) and is Requester-only; the staff
+// dashboard is IT Staff/Administrator-only (Administrators additionally get user counts, BR-34). A
+// failure returns a plain 500 with no partial body (AC-32).
+// ---------------------------------------------------------------------------
+app.get("/api/dashboard/requester", ...requireFullAuth, requireRole("REQUESTER"), async (req: Request, res: Response) => {
+  try {
+    res.status(200).json(await requesterDashboard(getPrisma(), req.currentUser!.id));
+  } catch {
+    res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to load the dashboard." } });
+  }
+});
+
+app.get(
+  "/api/staff/dashboard",
+  ...requireFullAuth,
+  requireRole("IT_STAFF", "ADMINISTRATOR"),
+  async (req: Request, res: Response) => {
+    try {
+      const { id, role } = req.currentUser!;
+      res.status(200).json(await staffDashboard(getPrisma(), { id, role }));
+    } catch {
+      res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Unable to load the dashboard." } });
     }
   }
 );

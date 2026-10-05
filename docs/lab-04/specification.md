@@ -220,7 +220,9 @@ should feel like one finished, consistent Zen Green product.
 - BR-32 The metric definitions in §5.5 are authoritative. Each one names its query, empty behavior and
   drill-down destination.
 - BR-33 "Recently resolved" means the Ticket's latest status-history transition into Resolved falls inside
-  the recent window. Legacy Tickets resolved before Lab 4 have no such row and are not listed (BR-21).
+  the recent window, and the Ticket is still Resolved or Closed. *Refined in Issue 4-5:* a Ticket
+  reopened since is no longer resolved work, so it isn't listed. Legacy Tickets resolved before Lab 4
+  have no such row and are not listed (BR-21).
 - BR-34 Administrators get the IT Staff metrics plus user-account counts (active users per role, and total
   inactive users). The user counts never appear in an IT Staff response.
 
@@ -323,7 +325,7 @@ not a backend rule (§11).
 | `resolvedAwaitingClose` | Resolved | status = Resolved | 0 | `/tickets?currentStatus=RESOLVED` |
 | `updatedRecently` | Updated in the last 7 days | `updatedAt ≥ windowStart` | 0 | `/tickets?sortBy=updatedAt&sortDir=desc` |
 | list `recentlyUpdated` | Recently updated | `updatedAt ≥ windowStart`, ordered `updatedAt desc, id desc`, top 5 | `[]` + empty text | each row → `/tickets/:id` |
-| list `recentlyResolved` | Recently resolved | latest history row into Resolved with `changedAt ≥ windowStart` (BR-33), ordered `changedAt desc, id desc`, top 5 | `[]` + empty text | each row → `/tickets/:id` |
+| list `recentlyResolved` | Recently resolved | latest history row into Resolved with `changedAt ≥ windowStart`, Ticket still Resolved or Closed (BR-33), ordered `changedAt desc, id desc`, top 5 | `[]` + empty text | each row → `/tickets/:id` |
 
 **IT Staff Dashboard** (`GET /api/staff/dashboard`), across all Tickets:
 

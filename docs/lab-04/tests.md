@@ -59,7 +59,7 @@ The labsheet requires these coverage types, mapped to concrete levels and IDs be
 |---|---|---|---|---|
 | UNIT-04 | BR-16, §5.2 | Ticket transition matrix, every (from, to, role) triple, including new Reopened → Resolved and Reopened → Cancelled | Listed triples allowed. All others denied. Nothing leaves Cancelled | Pass |
 | UNIT-05 | BR-17 | Gate predicate over an Action list | Allowed only with ≥1 Completed. Planned, In Progress or Cancelled alone are not enough | Pass |
-| UNIT-06 | BR-29 | `windowStart` in Asia/Bangkok for fixed clocks, including 16:59Z vs 17:00Z, the UTC instant when the Bangkok date changes | Always 00:00 Bangkok of (today − 6), returned as UTC | Pending |
+| UNIT-06 | BR-29 | `windowStart` in Asia/Bangkok for fixed clocks, including 16:59Z vs 17:00Z, the UTC instant when the Bangkok date changes | Always 00:00 Bangkok of (today − 6), returned as UTC | Pass |
 | UNIT-07 | BR-18 | Indication-clearing rule | Clears only for targets In Progress and Reopened | Pass |
 
 ### 2.3 API — `server/tests/lab-04/actions-taken.api.test.ts`
@@ -109,27 +109,27 @@ The labsheet requires these coverage types, mapped to concrete levels and IDs be
 
 | Test ID | Type | Req/AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|---|
-| API-34 | Authz | AC-02, BR-30 | Two fresh Requesters with different Tickets | Each sees only their own metric values and list rows | Pending |
-| API-35 | API | AC-02, BR-28, BR-32 | Every metric vs an independent Prisma count for that Requester (§5.5 definitions) | All equal | Pending |
-| API-36 | API | AC-28, BR-31 | Fresh Requester with no Tickets | `200`, every value 0, both lists `[]` | Pending |
-| API-37 | Authz | AC-29 | IT Staff and Administrator call it. No session | `403` / `403` / `401` | Pending |
-| API-38 | API | AC-33, BR-29 | Tickets with `updatedAt` = `windowStart − 1s` and `+ 1s` (set through Prisma) | Only the second is counted and listed. `windowStart` returned matches UNIT-06 | Pending |
-| API-39 | API | BR-33 | One Ticket resolved now (with history), one legacy Resolved Ticket with no history | Only the first is in `recentlyResolved` | Pending |
-| API-40 | API | AC-27 | For each metric, call `GET /api/tickets` with its `drillDown` query | `pagination.totalItems` = metric value | Pending |
-| API-41 | API | BR-31 | 7 recent Tickets, two with identical `updatedAt` | List has 5 rows in `updatedAt desc, id desc` order, stable across calls | Pending |
+| API-34 | Authz | AC-02, BR-30 | Two fresh Requesters with different Tickets | Each sees only their own metric values and list rows | Pass |
+| API-35 | API | AC-02, BR-28, BR-32 | Every metric vs an independent Prisma count for that Requester (§5.5 definitions) | All equal | Pass |
+| API-36 | API | AC-28, BR-31 | Fresh Requester with no Tickets | `200`, every value 0, both lists `[]` | Pass |
+| API-37 | Authz | AC-29 | IT Staff and Administrator call it. No session | `403` / `403` / `401` | Pass |
+| API-38 | API | AC-33, BR-29 | Tickets with `updatedAt` = `windowStart − 1s` and `+ 1s` (set through Prisma) | Only the second is counted and listed. `windowStart` returned matches UNIT-06 | Pass |
+| API-39 | API | BR-33 | One Ticket resolved now (with history), one legacy Resolved Ticket with no history | Only the first is in `recentlyResolved` | Pass |
+| API-40 | API | AC-27 | For each metric, call `GET /api/tickets` with its `drillDown` query | `pagination.totalItems` = metric value | Pass |
+| API-41 | API | BR-31 | 7 recent Tickets, two with identical `updatedAt` | List has 5 rows in `updatedAt desc, id desc` order, stable across calls | Pass |
 
 ### 2.6 API — `server/tests/lab-04/staff-dashboard.api.test.ts`
 
 | Test ID | Type | Req/AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|---|
-| API-42 | API | AC-25, BR-28 | Every Staff metric, `byStatus` and `openByItPriority` value vs an independent Prisma count taken in the same test | All equal | Pending |
-| API-43 | API | AC-26 | For each metric with a `drillDown`, call `GET /api/staff/tickets` with that query | `pagination.totalItems` = metric value | Pending |
-| API-44 | API | AC-31 | Actions assigned to staff A and B | A's `myOpenActions`, `myFollowUps` and `lists.myActions` contain only A's | Pending |
-| API-45 | Authz | AC-30, BR-34 | As Administrator, then as IT Staff | Admin: `users` present and equal to Prisma counts. Staff: no `users` key | Pending |
-| API-46 | Authz | AC-29 | Requester calls it | `403` | Pending |
-| API-47 | API | BR-31 | `byStatus` and `openByItPriority` shape | Always 8 and 4 entries in fixed order, zeros included | Pending |
-| API-48 | API | FR-16 | Queue `statusGroup=open`, `requesterResolved=true`, and invalid values | Correct filtering. Invalid values `400` | Pending |
-| API-49 | API | FR-16 | My Tickets `statusGroup=open`, `sortBy=updatedAt` | Correct filtering and ordering | Pending |
+| API-42 | API | AC-25, BR-28 | Every Staff metric, `byStatus` and `openByItPriority` value vs an independent Prisma count taken in the same test | All equal | Pass |
+| API-43 | API | AC-26 | For each metric with a `drillDown`, call `GET /api/staff/tickets` with that query | `pagination.totalItems` = metric value | Pass |
+| API-44 | API | AC-31 | Actions assigned to staff A and B | A's `myOpenActions`, `myFollowUps` and `lists.myActions` contain only A's | Pass |
+| API-45 | Authz | AC-30, BR-34 | As Administrator, then as IT Staff | Admin: `users` present and equal to Prisma counts. Staff: no `users` key | Pass |
+| API-46 | Authz | AC-29 | Requester calls it | `403` | Pass |
+| API-47 | API | BR-31 | `byStatus` and `openByItPriority` shape | Always 8 and 4 entries in fixed order, zeros included | Pass |
+| API-48 | API | FR-16 | Queue `statusGroup=open`, `requesterResolved=true`, and invalid values | Correct filtering. Invalid values `400` | Pass |
+| API-49 | API | FR-16 | My Tickets `statusGroup=open`, `sortBy=updatedAt` | Correct filtering and ordering | Pass |
 
 ### 2.7 Migration and seed — `server/tests/lab-04/migration-seed.api.test.ts`
 
@@ -144,8 +144,8 @@ The labsheet requires these coverage types, mapped to concrete levels and IDs be
 
 | Test ID | Type | Req/AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|---|
-| PERF-01 | Perf | api-spec §5 | Both dashboards with seed + 200 extra fixture Tickets, median of 5 calls | < 1000 ms each | Pending |
-| PERF-02 | Perf | — | Queue with `statusGroup=open`. Ticket detail with 20 Actions and 20 history rows | < 1000 ms / < 500 ms | Pending |
+| PERF-01 | Perf | api-spec §5 | Both dashboards with seed + 200 extra fixture Tickets, median of 5 calls | < 1000 ms each | Pass |
+| PERF-02 | Perf | — | Queue with `statusGroup=open`. Ticket detail with 20 Actions and 20 history rows | < 1000 ms / < 500 ms | Pass |
 
 ### 2.9 UI component — `client/tests/lab-04/`
 
@@ -153,22 +153,22 @@ The labsheet requires these coverage types, mapped to concrete levels and IDs be
 
 | Test ID | Req/AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-01 | FR-13, AC-26 | Mocked response | Every card shows label and value. Each "View" link's `href` equals the response `drillDown` | Pending |
-| UI-02 | ui-spec §3.1 | Pending request | Loading state, no numbers rendered | Pending |
-| UI-03 | AC-28 | All-zero response, empty lists | 0 values and empty-list sentences, no error | Pending |
-| UI-04 | AC-32 | `500`, then Retry succeeds | Failure alert with no numbers. Retry re-fetches and shows numbers | Pending |
-| UI-05 | AC-30 | Response with and without `users` | The Users group renders only when present | Pending |
-| UI-06 | AC-31 | `lists.myActions` rows | Each links to `/queue/:ticketId#actions` and shows Action status and Follow-up badges | Pending |
-| STYLE-01 | ui-spec §1.2, §9 | Metric card markup | Value is text. Link accessible name includes the metric ("View 3 unassigned tickets") | Pending |
+| UI-01 | FR-13, AC-26 | Mocked response | Every card shows label and value. Each "View" link's `href` equals the response `drillDown` | Pass |
+| UI-02 | ui-spec §3.1 | Pending request | Loading state, no numbers rendered | Pass |
+| UI-03 | AC-28 | All-zero response, empty lists | 0 values and empty-list sentences, no error | Pass |
+| UI-04 | AC-32 | `500`, then Retry succeeds | Failure alert with no numbers. Retry re-fetches and shows numbers | Pass |
+| UI-05 | AC-30 | Response with and without `users` | The Users group renders only when present | Pass |
+| UI-06 | AC-31 | `lists.myActions` rows | Each links to `/queue/:ticketId#actions` and shows Action status and Follow-up badges | Pass |
+| STYLE-01 | ui-spec §1.2, §9 | Metric card markup | Value is text. Link accessible name includes the metric ("View 3 unassigned tickets") | Pass |
 
 **`RequesterDashboard.test.tsx`**
 
 | Test ID | Req/AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-07 | FR-12, AC-27 | Mocked response | 4 cards and 2 lists. Drill-down `href`s go to `/tickets?...` | Pending |
-| UI-08 | AC-28 | Zero response | Zeros plus empty sentences | Pending |
-| UI-09 | AC-32 | `500` | Safe-failure alert plus Retry | Pending |
-| UI-10 | AC-29 | `403` | Forbidden panel | Pending |
+| UI-07 | FR-12, AC-27 | Mocked response | 4 cards and 2 lists. Drill-down `href`s go to `/tickets?...` | Pass |
+| UI-08 | AC-28 | Zero response | Zeros plus empty sentences | Pass |
+| UI-09 | AC-32 | `500` | Safe-failure alert plus Retry | Pass |
+| UI-10 | AC-29 | `403` | Forbidden panel | Pass |
 
 **`ActionsTaken.test.tsx`**
 
@@ -201,10 +201,10 @@ The labsheet requires these coverage types, mapped to concrete levels and IDs be
 
 | Test ID | Req/AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| UI-27 | FR-16, AC-26 | Queue opened at `?ownerId=unassigned&statusGroup=open&requesterResolved=true` | First fetch carries those params. Controls show them. Filter chip visible | Pending |
-| UI-28 | FR-16, AC-27 | My Tickets from URL. Invalid values | Params applied. Invalid ones dropped with notice, no raw error | Pending |
-| UI-29 | FR-15, AC-41 | App shell per role | "Dashboard" first. `aria-current="page"` on the active link. `/` goes to `/dashboard` | Pending |
-| UI-30 | FR-16 | User Management at `?role=IT_STAFF` | Fetch uses `role=IT_STAFF`. Filter preselected | Pending |
+| UI-27 | FR-16, AC-26 | Queue opened at `?ownerId=unassigned&statusGroup=open&requesterResolved=true` | First fetch carries those params. Controls show them. Filter chip visible | Pass |
+| UI-28 | FR-16, AC-27 | My Tickets from URL. Invalid values | Params applied. Invalid ones dropped with notice, no raw error | Pass |
+| UI-29 | FR-15, AC-41 | App shell per role | "Dashboard" first. `aria-current="page"` on the active link. `/` goes to `/dashboard` | Pass |
+| UI-30 | FR-16 | User Management at `?role=IT_STAFF` | Fetch uses `role=IT_STAFF`. Filter preselected | Pass |
 
 ### 2.10 Authorization summary
 
@@ -239,9 +239,9 @@ API rows tagged *Authz* above: API-01, 02, 17, 19, 28, 34, 37, 45 and 46. They c
 | E2E-03 | AC-20, AC-21 | ticket-resolution.spec.ts | Requester marks "appears resolved". Staff sees the pill, Resolves, Closes, Reopens. Pill cleared. Requester has no Reopen control | As specified | Pass |
 | E2E-04 | AC-22, AC-24 | ticket-resolution.spec.ts | Two staff contexts on one Ticket. One changes status. The other submits a status and an Action edit | Conflict banner, Reload, input retained, nothing overwritten | Pass |
 | E2E-05 | AC-05, AC-06, AC-08, AC-13 | actions-taken-flow.spec.ts | UI validation errors. Assignee deactivated by an Admin while the form is open, then save. Closed Ticket shows no Add Action | Field errors. `INVALID_ASSIGNEE` under Assignee. Read-only card | Pass |
-| E2E-06 | AC-25, AC-26 | dashboards.spec.ts | Staff dashboard: follow every card drill-down | The Queue total shown equals each card value | Pending |
-| E2E-07 | AC-02, AC-27, AC-28 | dashboards.spec.ts | Requester dashboard drill-downs. Fresh Requester sees zeros and empty states | As specified | Pending |
-| E2E-08 | AC-30, AC-41, FR-20 | dashboards.spec.ts | Each role logs in, lands on its Dashboard (Admin with user counts), and visits every screen | Correct landing and nav. Zero console errors collected across the journey | Pending |
+| E2E-06 | AC-25, AC-26 | dashboards.spec.ts | Staff dashboard: follow every card drill-down | The Queue total shown equals each card value | Pass |
+| E2E-07 | AC-02, AC-27, AC-28 | dashboards.spec.ts | Requester dashboard drill-downs. Fresh Requester sees zeros and empty states | As specified | Pass |
+| E2E-08 | AC-30, AC-41, FR-20 | dashboards.spec.ts | Each role logs in, lands on its Dashboard (Admin with user counts), and visits every screen | Correct landing and nav. Zero console errors collected across the journey | Pass |
 | E2E-09 | AC-39 | regression.spec.ts | Cross-role journey: Requester creates a Ticket with an attachment and a comment → staff claims, sets priority, adds a note and an Action, resolves → Admin creates and deactivates a user | All Lab 2/3 behavior intact | Pending |
 | E2E-10 | AC-37, AC-38 | regression.spec.ts | Double click Save on Action and Comment. Aborted network request (`page.route`) on the Action form | One record each. Form input retained after the failure | Pending |
 
@@ -292,22 +292,22 @@ that checklist is the final sign-off.
 
 ## 6. Final Results
 
-Updated as each Issue lands. **As of Issue 4-4 (Actions Taken and workflow UI):** UNIT-01–05 and
-UNIT-07, API-01–33, MIG-01–04, UI-11–26, STYLE-02 and E2E-01–05 are implemented and passing. UNIT-06 (the Asia/Bangkok window) is a dashboard
+Updated as each Issue lands. **As of Issue 4-5 (Dashboards):** every planned row except Issue 4-6's
+(REG-01–03, RESP-01–05, E2E-09–10) is implemented and passing. UNIT-06 (the Asia/Bangkok window) is a dashboard
 rule and lands with Issue 4-5.
 
 | Level | Planned | Actual so far | Passing | Failing | Deferred |
 |---|---|---|---|---|---|
-| Unit | 7 | 6 (UNIT-01–05, 07) | 6 | 0 | 0 |
-| API (incl. Authz/Workflow) | 49 | 33 (API-01–33) | 33 | 0 | 0 |
+| Unit | 7 | 7 (UNIT-01–07) | 7 | 0 | 0 |
+| API (incl. Authz/Workflow) | 49 | 49 (API-01–49) | 49 | 0 | 0 |
 | Migration / seed | 4 | 4 (MIG-01–04) | 4 | 0 | 0 |
-| Performance smoke | 2 | 0 | 0 | 0 | 0 |
-| UI component | 30 | 16 (UI-11–26) | 16 | 0 | 0 |
-| UI style | 2 | 1 (STYLE-02) | 1 | 0 | 0 |
+| Performance smoke | 2 | 2 (PERF-01–02) | 2 | 0 | 0 |
+| UI component | 30 | 30 (UI-01–30) | 30 | 0 | 0 |
+| UI style | 2 | 2 (STYLE-01–02) | 2 | 0 | 0 |
 | Regression | 3 | 0 | 0 | 0 | 0 |
 | Responsive | 5 | 0 | 0 | 0 | 0 |
-| E2E | 10 | 5 (E2E-01–05) | 5 | 0 | 0 |
-| **Total** | **112** | **65** | **65** | **0** | **0** |
+| E2E | 10 | 8 (E2E-01–08) | 8 | 0 | 0 |
+| **Total** | **112** | **102** | **102** | **0** | **0** |
 
 Baseline before any Lab 4 change, confirmed on `feature/4-2-Actions-Taken-backend` at
 `lab4-staging`'s tip (`494d1c0`): 188 server + 75 client Vitest, all passing.
@@ -357,6 +357,22 @@ Three client mutation checks:
 
 A browser pass at 800px and 375px on a seeded Ticket with three Actions found one real overflow, fixed
 in this issue (§7).
+
+**After Issue 4-5:**
+- **Server:** `cd server && npm test` gives 367 passing (188 Lab 1–3 + 179 Lab 4), three consecutive
+  runs on `toktickit_test`. New files: `requester-dashboard.api`, `staff-dashboard.api`,
+  `performance-smoke.api`, plus UNIT-06 in `workflow-rules.unit`.
+- **Client:** `cd client && npm test` gives 144 passing (no `act()` warnings). New files:
+  `StaffDashboard`, `RequesterDashboard`, `DrillDownFilters`.
+- **Playwright:** `npx playwright test e2e/lab-03 e2e/lab-04` gives 31 passing. Six consecutive runs
+  without the Lab 3 visual spec (15/15 each) and two full runs (31/31). The main dev DB stayed at its
+  11 seed users throughout.
+- **Mutation check:** dropping Reopened from the open group fails API-35, API-42 and API-49.
+- **Browser check:**
+  - At 625px and 375px, the Admin dashboard and a drill-down Queue had no horizontal scroll.
+  - On the phone, cards stack one per row.
+  - The "Unassigned" card's 2893 matched the drilled-down Queue's "2893 total".
+  - Console errors appeared only for the two expected pre-login 401s.
 
 ## 7. Known Limitations or Deferred Tests
 
@@ -463,3 +479,43 @@ Found during implementation:
   appear on the Login screen before anyone has logged in. They are the session check and expected, but
   the browser logs them as errors, so E2E-08's "zero console errors" rule must either exclude them or
   the session check must avoid a logged error.
+- **Issue 4-5: global dashboard numbers are compared "until consistent", not as one snapshot.**
+  API-42, API-43 and API-45 compare all-Tickets or all-Users numbers with independent counts, while
+  other test files write to the same database in parallel. Those files even create a Ticket and change
+  its status within milliseconds, so a count can rise and fall during one API call. Two weaker guards
+  were tried and failed in practice:
+  1. "Same count before and after the call."
+  2. A whole-table write fingerprint. It was blinded because one test deliberately sets a Ticket's
+     `updatedAt` a minute into the future.
+
+  Each comparison is now retried until the API and the count agree, up to 45 s, and fails only if they
+  never do. A real bug never agrees, as the mutation check above confirms.
+- **The URL filter sync lost its own "unrecognized link" notice (found by UI-28, fixed).**
+  `src/urlFilters.ts`'s first version decided "did the URL change from outside?" by remembering its own
+  writes. On first load, that misread the page's own clean-up of a bad link as a second outside change
+  and re-read the URL, which cleared the notice. A first fix still broke under React StrictMode's
+  doubled effects. The final version decides by content instead: it cleans up the URL and compares it
+  with the page's current filters. A StrictMode test covers it.
+- **Lab 2/3 leftovers found and fixed while adding drill-downs:**
+  - My Tickets' Status filter still offered only "New" (from Lab 2, when that was the only reachable
+    status). It now lists all 8, plus "All open".
+  - The Queue's Ticket Owner filter only offered "Unassigned" (from before Tickets could have owners).
+    It now lists active staff, with "(me)".
+- **Lab 3 E2E updated for the Dashboard landing page.** Specs that expected to land on Ticket Queue or
+  My Tickets now expect the Dashboard, then navigate on. "User Management" clicks are scoped to the
+  Primary nav, because the Admin dashboard's Quick Actions has a link with the same name.
+
+  One assertion stayed as it was: E2E-01 opens `/tickets` while the password gate is up, so after
+  changing the password it correctly remains on My Tickets. The Dashboard landing applies to `/` only.
+- **`toktickit_test` has grown to about 2,400 fixture users.** Every test run adds disposable accounts.
+  Under a full parallel Playwright run, the Lab 3 visual spec's desktop User Management step once took
+  longer than its 5 s wait loading that list. It passed in every other run. That is environment size,
+  not an app regression; resetting `toktickit_test` occasionally keeps runs fast.
+- **UI-29 was flaky under heavy CPU load (PR #59 review, fixed).** The test waited for the URL to become
+  `/dashboard` and then checked `aria-current` immediately. The URL changes as soon as navigation
+  starts, slightly before React finishes re-rendering the nav, so a busy machine could check in that
+  gap (the reviewer saw 143/144).
+
+  The test now waits for the Dashboard heading, then checks the URL and `aria-current` inside
+  `waitFor`, re-querying the nav. Verified with five normal client runs and three rounds of two full
+  suites running at once (144/144 every time).

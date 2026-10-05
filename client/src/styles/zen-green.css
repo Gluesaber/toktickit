@@ -359,3 +359,42 @@ body {
   outline: 2px solid var(--zg-primary);
   outline-offset: 2px;
 }
+
+/* Issue 4-5 (Lab 4) — dashboards, docs/lab-04/ui-spec.md §1.2/§3. Existing tokens only. */
+.zg-metric-card {
+  border: 1px solid var(--zg-pale);
+}
+
+.zg-metric-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--zg-text-muted);
+}
+
+.zg-metric-value {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--zg-primary);
+}
+
+/* "Waiting for you" when > 0: a warning-colored left border plus visible text ("Needs your reply"). */
+.zg-metric-card-attention {
+  border-left: 4px solid var(--zg-warning);
+}
+
+.zg-metric-attention-text {
+  color: var(--zg-warning);
+}
+
+/* Active nav link: a heavier weight and an underline as well as the background, so the cue isn't
+   color alone (ui-spec.md §2, AC-41). NavLink also sets aria-current="page". */
+.app-nav-link.active {
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+}
+
+.app-nav-link:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}

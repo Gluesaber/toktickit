@@ -73,7 +73,7 @@ export interface TicketListResponse {
   pagination: PaginationMeta;
 }
 
-export type SortField = "createdAt" | "ticketNumber" | "currentStatus" | "requestedPriority";
+export type SortField = "createdAt" | "ticketNumber" | "currentStatus" | "requestedPriority" | "updatedAt";
 export type SortDir = "asc" | "desc";
 
 // Issue 3-3 (Lab 3) — `requesterId` removed (BR-03/BR-17): the authenticated session determines
@@ -84,6 +84,7 @@ export interface TicketListQuery {
   relatedSystemId?: number;
   requestedPriority?: Priority;
   currentStatus?: string;
+  statusGroup?: "open"; // Issue 4-5 (Lab 4) — BR-27's open group, for dashboard drill-downs
   sortBy?: SortField;
   sortDir?: SortDir;
   page?: number;
@@ -236,6 +237,7 @@ export async function getTickets(query: TicketListQuery): Promise<TicketListResp
   if (query.relatedSystemId !== undefined) params.set("relatedSystemId", String(query.relatedSystemId));
   if (query.requestedPriority) params.set("requestedPriority", query.requestedPriority);
   if (query.currentStatus) params.set("currentStatus", query.currentStatus);
+  if (query.statusGroup) params.set("statusGroup", query.statusGroup);
   if (query.sortBy) params.set("sortBy", query.sortBy);
   if (query.sortDir) params.set("sortDir", query.sortDir);
   if (query.page !== undefined) params.set("page", String(query.page));
@@ -343,6 +345,7 @@ export interface StaffTicketListItem {
   itPriority: Priority;
   currentStatus: string;
   owner: { id: number; name: string; role: Role } | null;
+  requesterConfirmedResolvedAt: string | null; // Issue 4-5 (Lab 4) — Queue-row pill
   createdAt: string;
   updatedAt: string;
 }
@@ -361,6 +364,8 @@ export interface StaffTicketListQuery {
   itPriority?: Priority;
   currentStatus?: string;
   ownerId?: number | "unassigned";
+  statusGroup?: "open"; // Issue 4-5 (Lab 4)
+  requesterResolved?: boolean;
   sortBy?: StaffSortField;
   sortDir?: SortDir;
   page?: number;
@@ -375,6 +380,8 @@ export async function getStaffTickets(query: StaffTicketListQuery): Promise<Staf
   if (query.itPriority) params.set("itPriority", query.itPriority);
   if (query.currentStatus) params.set("currentStatus", query.currentStatus);
   if (query.ownerId !== undefined) params.set("ownerId", String(query.ownerId));
+  if (query.statusGroup) params.set("statusGroup", query.statusGroup);
+  if (query.requesterResolved) params.set("requesterResolved", "true");
   if (query.sortBy) params.set("sortBy", query.sortBy);
   if (query.sortDir) params.set("sortDir", query.sortDir);
   if (query.page !== undefined) params.set("page", String(query.page));
@@ -669,6 +676,75 @@ export async function updateAction(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Issue 4-5 (Lab 4) — Dashboards (docs/lab-04/api-spec.md §5). `drillDown` is a client route (path +
+// query string) the UI renders as a link; null means the drill-down is the list shown on the page.
+// ---------------------------------------------------------------------------
+
+export interface DashboardMetric {
+  key: string;
+  label: string;
+  value: number;
+  drillDown: string | null;
+}
+
+export interface RequesterDashboard {
+  generatedAt: string;
+  timeZone: string;
+  windowStart: string;
+  metrics: DashboardMetric[];
+  lists: {
+    recentlyUpdated: { id: number; ticketNumber: string; summary: string; currentStatus: string; updatedAt: string }[];
+    recentlyResolved: { id: number; ticketNumber: string; summary: string; currentStatus: string; resolvedAt: string }[];
+  };
+}
+
+export interface StaffDashboard {
+  generatedAt: string;
+  timeZone: string;
+  windowStart: string;
+  metrics: DashboardMetric[];
+  byStatus: { status: string; value: number; drillDown: string }[];
+  openByItPriority: { itPriority: Priority; value: number; drillDown: string }[];
+  lists: {
+    myActions: {
+      actionId: number;
+      ticketId: number;
+      ticketNumber: string;
+      description: string;
+      status: ActionStatus;
+      followUpRequired: boolean;
+      actionAt: string;
+    }[];
+    urgentAndRecent: {
+      id: number;
+      ticketNumber: string;
+      summary: string;
+      currentStatus: string;
+      itPriority: Priority;
+      updatedAt: string;
+      owner: UserRef | null;
+    }[];
+  };
+  // Present only for an Administrator (BR-34).
+  users?: {
+    activeByRole: { role: Role; value: number; drillDown: string }[];
+    inactive: { value: number; drillDown: string };
+  };
+}
+
+export async function getRequesterDashboard(): Promise<RequesterDashboard> {
+  const res = await fetch(`${API_URL}/api/dashboard/requester`, { credentials: "include" });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function getStaffDashboard(): Promise<StaffDashboard> {
+  const res = await fetch(`${API_URL}/api/staff/dashboard`, { credentials: "include" });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }
