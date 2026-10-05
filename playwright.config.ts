@@ -1,7 +1,9 @@
 import { defineConfig } from "@playwright/test";
 
-// Issue 2-8 (Lab 2) — E2E + responsive verification. docs/lab-02/tests.md §5's documented command
-// is `npx playwright test e2e/lab-02` (from the repo root).
+// Issue 2-8 (Lab 2) — E2E + responsive verification.
+// Issue 4-6 (Lab 4) — the documented command is now `npx playwright test e2e/lab-03 e2e/lab-04` (from the
+// repo root); e2e/lab-02 was removed (its specs drove the Development Requester Selector that Lab 3
+// replaced). Screenshots are only written with CAPTURE_SCREENSHOTS=1 (README §6).
 //
 // Prerequisite (not managed by this config, same convention as server/client's own `npm test`):
 // the dev Postgres container must be running and migrated/seeded, and the backend

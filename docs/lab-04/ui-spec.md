@@ -179,10 +179,11 @@ On `409 STALE_UPDATE` from any status, owner, priority or Action edit:
 is Closed or Cancelled, and the card then reads "This ticket is closed; actions are read-only."
 
 **List** (BR-13 order):
-- Desktop and tablet (≥768px): a table with columns Date/Time · Description · Result · Status · Performed
-  by · Assignee · Follow-up · (actions). Description and Result wrap; they are never cut off.
-- Mobile (<768px): one card per Action. Field label/value pairs are stacked and the actions sit at the
-  bottom.
+- Desktop (≥992px): a table with columns Date/Time · Description · Result · Status · Performed by ·
+  Assignee · Follow-up · (actions). Description and Result wrap; they are never cut off.
+- Tablet and mobile (<992px): one card per Action. Field label/value pairs are stacked and the actions
+  sit at the bottom. *Changed in Issue 4-6:* the table originally started at 768px, but at 820px its
+  eight columns pushed the page sideways (RESP-02).
 - Each row has a **View** button. Non-locked rows also have an **Edit** button. Locked rows (Completed,
   Cancelled) never show Edit (AC-10).
 - Empty state: "No actions recorded yet." plus the Add Action button.
@@ -282,8 +283,8 @@ Same principles as Lab 2 §7 and Lab 3 §9, applied to every Lab 4 screen:
 - no clipped labels, overlapping controls or hidden buttons;
 - truncated text always has a full-text tooltip.
 
-The Actions Taken table switches to cards below 768px, so the eight-column table never forces horizontal
-scroll.
+The Actions Taken table switches to cards below 992px (Issue 4-6; originally 768px), so the
+eight-column table never forces horizontal scroll.
 
 ## 9. Accessibility Rules
 
@@ -340,7 +341,7 @@ Lab 3 §11.
       a text label.
 - [ ] Dashboard cards show correct values, readable labels and working drill-downs at all 3 viewports.
 - [ ] Zero, empty, loading, failure and forbidden states render as specified on both dashboards.
-- [ ] The Actions Taken table becomes cards below 768px, with no horizontal page scroll at 375px.
+- [ ] The Actions Taken table becomes cards below 992px, with no horizontal page scroll at 375px or 820px.
 - [ ] Editable vs read-only fields are visually distinct, and locked Actions show no edit control.
 - [ ] Validation messages appear under the right field and in the form summary, and input is kept after
       errors.

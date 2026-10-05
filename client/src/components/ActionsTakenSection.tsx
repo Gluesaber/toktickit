@@ -182,14 +182,24 @@ export default function ActionsTakenSection({
     setPanel(next);
   }
 
+  // Return focus to whatever opened the panel, or to Add Action if that control is gone (it is
+  // hidden while the create form is open, so it's a new element afterwards). Issue 4-6 (Lab 4) —
+  // done in an effect, after React has committed the closed panel: the first version used
+  // requestAnimationFrame, which after an async save could run before the Add Action button
+  // existed again, leaving focus on <body> (caught intermittently by RESP-04).
+  const restoreFocus = useRef(false);
+
   function close() {
+    restoreFocus.current = true;
     setPanel({ kind: "none" });
-    // Return focus to whatever opened the panel, or to Add Action if that control is gone.
-    requestAnimationFrame(() => {
-      const target = openerRef.current && document.body.contains(openerRef.current) ? openerRef.current : addButtonRef.current;
-      target?.focus();
-    });
   }
+
+  useEffect(() => {
+    if (panel.kind !== "none" || !restoreFocus.current) return;
+    restoreFocus.current = false;
+    const opener = openerRef.current && document.body.contains(openerRef.current) ? openerRef.current : null;
+    (opener ?? addButtonRef.current)?.focus();
+  }, [panel]);
 
   function handleSaved(action: ActionTaken, message: string) {
     onSaved?.(action);
@@ -263,8 +273,10 @@ export default function ActionsTakenSection({
           </p>
         ) : (
           <>
-            {/* ≥768px: table. Free-text cells wrap so the table never forces horizontal page scroll. */}
-            <div className="d-none d-md-block">
+            {/* ≥992px: table. Issue 4-6 (Lab 4) — was ≥768px, but at tablet width (820px) the eight
+                columns needed ~756px inside a narrower card and pushed the page sideways (caught by
+                RESP-02). Below 992px the stacked cards are used instead. Free-text cells wrap. */}
+            <div className="d-none d-lg-block">
               <table className="table table-sm align-top mb-0">
                 <thead>
                   <tr>
@@ -323,8 +335,8 @@ export default function ActionsTakenSection({
               </table>
             </div>
 
-            {/* <768px: one card per Action, label/value pairs stacked. */}
-            <ul className="list-unstyled d-md-none mb-0">
+            {/* <992px (tablet and phone): one card per Action, label/value pairs stacked. */}
+            <ul className="list-unstyled d-lg-none mb-0">
               {actions.map((a) => (
                 <li key={a.id} className={`ticket-card${a.id === lastSavedId ? " zg-row-saved" : ""}`} data-action-id={a.id}>
                   <div className="d-flex justify-content-between align-items-start gap-2 mb-2">

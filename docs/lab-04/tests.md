@@ -216,19 +216,19 @@ API rows tagged *Authz* above: API-01, 02, 17, 19, 28, 34, 37, 45 and 46. They c
 
 | Test ID | Req/AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| REG-01 | AC-39 | All `server/tests/lab-01..03` suites (with the `version` helper from §1) | All pass | Pending |
-| REG-02 | AC-39 | All `client/tests/lab-02..03` suites | All pass | Pending |
-| REG-03 | AC-39 | `npx playwright test e2e/lab-03` | All pass | Pending |
+| REG-01 | AC-39 | All `server/tests/lab-01..03` suites (with the `version` helper from §1) | All pass | Pass |
+| REG-02 | AC-39 | All `client/tests/lab-02..03` suites | All pass | Pass |
+| REG-03 | AC-39 | `npx playwright test e2e/lab-03` | All pass | Pass |
 
 ### 2.12 Responsive / accessibility — `e2e/lab-04/visual-responsive.spec.ts` *(additional, §1)*
 
 | Test ID | Req/AC | What It Tests | Expected Result | Final |
 |---|---|---|---|---|
-| RESP-01 | AC-40 | Staff, Admin and Requester dashboards at 1280, 820 and 375 | `scrollWidth ≤ clientWidth`. Cards stack per ui-spec §3.1 | Pending |
-| RESP-02 | AC-40 | Staff Ticket Detail with 3+ Actions at 1280, 820 and 375 | Table at ≥768, cards at 375. No overflow or clipping | Pending |
-| RESP-03 | AC-40 | Requester Ticket Detail (read-only Actions plus history) at 375 | No overflow | Pending |
-| RESP-04 | AC-40 | Keyboard-only: dashboard drill-down, then Add Action, fill, Save, then status change | Every step reachable by Tab/Enter/Space with a visible focus ring | Pending |
-| RESP-05 | ui-spec §10 | Baseline screenshots per screen × viewport | Files written under `artifacts/lab-04/screenshots/` | Pending |
+| RESP-01 | AC-40 | Staff, Admin and Requester dashboards at 1280, 820 and 375 | `scrollWidth ≤ clientWidth`. Cards stack per ui-spec §3.1 | Pass |
+| RESP-02 | AC-40 | Staff Ticket Detail with 3+ Actions at 1280, 820 and 375 | Table at ≥992, cards below (changed from ≥768 in Issue 4-6, §7). No overflow or clipping | Pass |
+| RESP-03 | AC-40 | Requester Ticket Detail (read-only Actions plus history) at 375 | No overflow | Pass |
+| RESP-04 | AC-40 | Keyboard-only: dashboard drill-down, then Add Action, fill, Save, then status change | Every step reachable by Tab/Enter/Space with a visible focus ring | Pass |
+| RESP-05 | ui-spec §10 | Baseline screenshots per screen × viewport | Files written under `artifacts/lab-04/screenshots/` | Pass |
 
 ### 2.13 E2E — `e2e/lab-04/`
 
@@ -242,8 +242,8 @@ API rows tagged *Authz* above: API-01, 02, 17, 19, 28, 34, 37, 45 and 46. They c
 | E2E-06 | AC-25, AC-26 | dashboards.spec.ts | Staff dashboard: follow every card drill-down | The Queue total shown equals each card value | Pass |
 | E2E-07 | AC-02, AC-27, AC-28 | dashboards.spec.ts | Requester dashboard drill-downs. Fresh Requester sees zeros and empty states | As specified | Pass |
 | E2E-08 | AC-30, AC-41, FR-20 | dashboards.spec.ts | Each role logs in, lands on its Dashboard (Admin with user counts), and visits every screen | Correct landing and nav. Zero console errors collected across the journey | Pass |
-| E2E-09 | AC-39 | regression.spec.ts | Cross-role journey: Requester creates a Ticket with an attachment and a comment → staff claims, sets priority, adds a note and an Action, resolves → Admin creates and deactivates a user | All Lab 2/3 behavior intact | Pending |
-| E2E-10 | AC-37, AC-38 | regression.spec.ts | Double click Save on Action and Comment. Aborted network request (`page.route`) on the Action form | One record each. Form input retained after the failure | Pending |
+| E2E-09 | AC-39 | regression.spec.ts | Cross-role journey: Requester creates a Ticket with an attachment and a comment → staff claims, sets priority, adds a note and an Action, resolves → Admin creates and deactivates a user | All Lab 2/3 behavior intact | Pass |
+| E2E-10 | AC-37, AC-38 | regression.spec.ts | Double click Save on Action and Comment. Aborted network request (`page.route`) on the Action form | One record each. Form input retained after the failure | Pass |
 
 ## 3. Acceptance-Criterion Traceability
 
@@ -292,8 +292,8 @@ that checklist is the final sign-off.
 
 ## 6. Final Results
 
-Updated as each Issue lands. **As of Issue 4-5 (Dashboards):** every planned row except Issue 4-6's
-(REG-01–03, RESP-01–05, E2E-09–10) is implemented and passing. UNIT-06 (the Asia/Bangkok window) is a dashboard
+Updated as each Issue lands. **As of Issue 4-6 (Final hardening and E2E): all 112 planned rows are
+implemented and passing.** Issue 4-7 (Final Doc) does the final staleness sweep. UNIT-06 (the Asia/Bangkok window) is a dashboard
 rule and lands with Issue 4-5.
 
 | Level | Planned | Actual so far | Passing | Failing | Deferred |
@@ -304,10 +304,10 @@ rule and lands with Issue 4-5.
 | Performance smoke | 2 | 2 (PERF-01–02) | 2 | 0 | 0 |
 | UI component | 30 | 30 (UI-01–30) | 30 | 0 | 0 |
 | UI style | 2 | 2 (STYLE-01–02) | 2 | 0 | 0 |
-| Regression | 3 | 0 | 0 | 0 | 0 |
-| Responsive | 5 | 0 | 0 | 0 | 0 |
-| E2E | 10 | 8 (E2E-01–08) | 8 | 0 | 0 |
-| **Total** | **112** | **102** | **102** | **0** | **0** |
+| Regression | 3 | 3 (REG-01–03) | 3 | 0 | 0 |
+| Responsive | 5 | 5 (RESP-01–05) | 5 | 0 | 0 |
+| E2E | 10 | 10 (E2E-01–10) | 10 | 0 | 0 |
+| **Total** | **112** | **112** | **112** | **0** | **0** |
 
 Baseline before any Lab 4 change, confirmed on `feature/4-2-Actions-Taken-backend` at
 `lab4-staging`'s tip (`494d1c0`): 188 server + 75 client Vitest, all passing.
@@ -519,3 +519,60 @@ Found during implementation:
   The test now waits for the Dashboard heading, then checks the URL and `aria-current` inside
   `waitFor`, re-querying the nav. Verified with five normal client runs and three rounds of two full
   suites running at once (144/144 every time).
+- **Issue 4-6: the parallel-worker race on the `session` table is fixed.** `server/tests/globalSetup.ts`
+  runs once, before Vitest starts its workers, and creates connect-pg-simple's table from the library's
+  own `table.sql` if it is missing. Proof on a brand-new database with no `session` table: without the
+  setup, 26 failures; with it, 367/367 on the first run.
+- **Issue 4-6: the Lab 3 visual spec no longer rewrites graded Lab 3 screenshots.** All screenshot
+  writes in `e2e/lab-03/visual-responsive.spec.ts` and `e2e/lab-04/visual-responsive.spec.ts` now
+  happen only with `CAPTURE_SCREENSHOTS=1`. The layout assertions run every time. Several consecutive
+  full runs left `artifacts/` untouched.
+- **Issue 4-6: `e2e/lab-02` removed** (specification §11). The regression command is
+  `npx playwright test e2e/lab-03 e2e/lab-04`.
+- **The Actions Taken table pushed Staff Ticket Detail sideways at tablet width (found by RESP-02,
+  fixed).** At 820px its eight columns needed about 756px inside a narrower card: page 827px in an
+  805px viewport. Issue 4-4's browser check had measured overflow only at 375px. The table now starts
+  at 992px (Bootstrap `lg`), with stacked cards below. `ui-spec.md` §5.3/§8/§11 are updated.
+- **Focus could be lost after saving an Action (found by RESP-04, fixed).** After an asynchronous
+  save, focus was returned on the next animation frame, which could run before React had re-created
+  the "Add Action" button, leaving focus on `<body>`. It failed 1 in 8 under a parallel stress run. It
+  is now returned in an effect after the commit: 12/12 under the same stress run. A component test
+  guards the behaviour, but jsdom can't reproduce the original timing, so the real-browser stress run
+  is the proof.
+- **The test database had grown to about 2,400 users and 4,300 Tickets.** Under a full parallel run,
+  screens that list every user (User Management, which has no pagination by Lab 3 scope) or every
+  staff member (the assignee/owner pickers) became slow enough to hit 30 s test timeouts.
+  `toktickit_test` was dropped, recreated, migrated and seeded (11 users, 14 demo tickets). The main
+  dev DB was never touched. The README now explains the separate test database and resetting it.
+- **E2E-09 (the cross-role journey) gets a 90 s limit.** It covers three users and about 30 UI steps,
+  about 15 s on its own, so the default 30 s is too tight under a full parallel run. Its fixture names
+  are unique per run (the Reassign-picker lesson from Issue 4-4).
+- **Three E2E timing races (found in PR #60 review, fixed in the tests).** On a slower machine the
+  tests acted faster than the app could finish, so the failures were in the test steps, not the app:
+  - E2E-09 changed the status while the IT Priority save was still running, so the status change went
+    out with the old version and was refused as stale (409). It now waits for each save to finish
+    (the control is enabled again) before the next one, and waits for the Queue search (300 ms
+    debounce) to show exactly the one matching ticket before clicking it.
+  - RESP-04 (Lab 4) started pressing Tab as soon as the Queue heading appeared, before the list had
+    loaded. It now waits for the ticket link first.
+  - RESP-03 (Lab 3) clicked a search result just as the debounced search re-drew the list. It now
+    opens the ticket directly by its id, since the test is about the detail page's layout; search
+    is still covered by `staff-ticket-flow.spec.ts`.
+
+  Verified: three consecutive full runs (43/43), then the three specs repeated 5 times with 8 parallel
+  workers (140/140).
+- **Formal regression sign-off (REG-01–03).** Run on `feature/4-6-Final-hardening-and-E2E`:
+  - `cd server && npm test`: 367/367 (Lab 1–3: 188, Lab 4: 179);
+  - `cd client && npm test`: 145/145 (Lab 2–3: 75, Lab 4: 70);
+  - `npx playwright test e2e/lab-03 e2e/lab-04`: 43/43 (Lab 3: 23, Lab 4: 20), three consecutive
+    full runs after the last change (the PR #60 race fixes above).
+
+  All results are from runs on `toktickit_test`; the main dev DB stayed at its 11 seed users.
+- **RESP-05 baseline screenshots** (15 files in `artifacts/lab-04/screenshots/{staff-dashboard,
+  requester-dashboard, actions-taken}/`) were captured once with `CAPTURE_SCREENSHOTS=1` against a
+  throwaway database (`toktickit_demo`: migrated, seeded, then dropped).
+- **Known, accepted:** the Login screen's session check (`GET /api/auth/me`) answers 401 before anyone
+  has logged in, and the browser logs that as a console error. This is the documented Lab 3 contract
+  (`docs/lab-03/api-spec.md` §1), so E2E-08 counts console errors from login onward. A long name in the
+  Lab 3 read-only Requester field is visually truncated at tablet width; the full value is still in
+  the field.

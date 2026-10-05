@@ -16,6 +16,14 @@ const VIEWPORTS = {
   mobile: { width: 375, height: 812 },
 } as const;
 
+// Issue 4-6 (Lab 4) — screenshots are written only when asked for (CAPTURE_SCREENSHOTS=1). These
+// files are graded Lab 3 evidence; when this spec runs as everyday regression (e2e/lab-03 alongside
+// e2e/lab-04) it must not overwrite them with whatever data the current database happens to hold.
+// The layout assertions in every test still run either way.
+async function captureScreenshot(page: Page, path: string) {
+  if (process.env.CAPTURE_SCREENSHOTS === "1") await page.screenshot({ path, fullPage: true });
+}
+
 async function assertNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth
@@ -46,6 +54,7 @@ async function openNavIfCollapsed(page: Page) {
 
 let admin: Awaited<ReturnType<typeof createReadyUser>>;
 let ticketNumber: string;
+let ticketId: number;
 // Still on its initial password (mustChangePassword: true), so logging in lands on Change Password.
 // Only ever logged into, never submitted, so it stays in that state for all three viewport tests.
 let gatedUser: Awaited<ReturnType<typeof createUser>>;
@@ -59,6 +68,7 @@ test.beforeAll(async () => {
   ]);
   admin = readyAdmin;
   ticketNumber = requesterFixture.ticketNumber;
+  ticketId = requesterFixture.ticketId;
   gatedUser = gated;
   await adminContext.dispose();
 });
@@ -120,7 +130,7 @@ for (const [viewportName, viewportSize] of Object.entries(VIEWPORTS)) {
         await expect(page.locator(".table-responsive")).toBeVisible();
       }
 
-      await page.screenshot({ path: `artifacts/lab-03/screenshots/staff-queue/queue-loaded-${viewportName}.png`, fullPage: true });
+      await captureScreenshot(page, `artifacts/lab-03/screenshots/staff-queue/queue-loaded-${viewportName}.png`);
     });
 
     // RESP-02 (AC-34)
@@ -140,17 +150,17 @@ for (const [viewportName, viewportSize] of Object.entries(VIEWPORTS)) {
         await expect(page.locator(".table-responsive")).toBeVisible();
       }
 
-      await page.screenshot({ path: `artifacts/lab-03/screenshots/user-management/user-list-${viewportName}.png`, fullPage: true });
+      await captureScreenshot(page, `artifacts/lab-03/screenshots/user-management/user-list-${viewportName}.png`);
     });
 
     // RESP-03 — tablet two-column layout, no clipping/overlap (checked at every viewport for the
     // baseline shot; the specific column-alignment assertion only applies at tablet width).
     test("Staff Ticket Detail — no horizontal scroll, tablet keeps the two-column classification row", async ({ page }) => {
       await loginAs(page, admin.email, admin.password);
-      // Issue 4-5 (Lab 4) — login lands on the Dashboard now; the Queue is where the search box is.
-      await page.goto("/queue");
-      await page.getByLabel(/^search/i).fill(ticketNumber);
-      await page.getByRole("link", { name: ticketNumber }).first().click();
+      // Issue 4-6 (Lab 4) — open the Ticket directly. Searching the Queue first raced its 300 ms search
+      // debounce: the click could land just as the filtered list replaced the row (PR #60 review), and
+      // this test is about the detail page's layout, not search (staff-ticket-flow covers search).
+      await page.goto(`/queue/${ticketId}`);
       await expect(page.getByRole("heading", { name: ticketNumber })).toBeVisible();
       await assertNoHorizontalOverflow(page);
 
@@ -160,7 +170,7 @@ for (const [viewportName, viewportSize] of Object.entries(VIEWPORTS)) {
         expect(categoryBox?.y).toBeCloseTo(relatedSystemBox!.y, 0);
       }
 
-      await page.screenshot({ path: `artifacts/lab-03/screenshots/staff-ticket-detail/detail-view-${viewportName}.png`, fullPage: true });
+      await captureScreenshot(page, `artifacts/lab-03/screenshots/staff-ticket-detail/detail-view-${viewportName}.png`);
     });
   });
 }

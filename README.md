@@ -146,16 +146,24 @@ npm run dev      # http://localhost:5173
 
 Open `http://localhost:5173` in a browser. You will land on the **Login** screen — sign in with any
 seeded account above (§4a) and its shared initial password. On first login you'll be required to set a
-new password before continuing (mandatory first-login password change). What you can do depends on the role:
+new password before continuing (mandatory first-login password change). After that, every role lands on
+its **Dashboard**: live counts that each open the list they count. What you can do depends on the role:
 
-- **Requester** — create tickets, browse your own ticket list with search/filter/sort/pagination, view
-  ticket detail, manage attachments (upload, download, soft-remove), post Public Comments, indicate a
-  problem appears resolved, and cancel a ticket that is still New or Open.
-- **IT Staff** — work the shared Ticket Queue (search/filter/sort/pagination across every Requester),
-  open any ticket, claim or reassign ownership, set IT Priority, change status along the permitted
-  transitions, and post Public Comments and Internal Notes (Internal Notes are never visible to Requesters).
-- **Administrator** — everything IT Staff can do, plus User Management: list/search/filter users, create
-  a user, edit name/email/role/active state, and set a new initial password for a user.
+- **Requester** — a dashboard of your own tickets (open, waiting for your reply, resolved, recently
+  updated); create tickets; browse your own ticket list with search/filter/sort/pagination; view ticket
+  detail including the **Actions Taken** by IT and the **status history** (read-only); manage attachments
+  (upload, download, soft-remove); post Public Comments; indicate a problem appears resolved; and cancel a
+  ticket that is still New or Open.
+- **IT Staff** — a dashboard (unassigned tickets, my open tickets and actions, follow-ups, counts by
+  status and IT Priority, urgent and recent tickets); the shared Ticket Queue; claim or reassign
+  ownership; set IT Priority; record **Actions Taken** (plan, start, complete or cancel a piece of work,
+  assign it, note follow-ups); change status along the permitted transitions — a ticket can only be
+  **Resolved once at least one Action is Completed**; post Public Comments and Internal Notes (never
+  visible to Requesters). If someone else changed a ticket since you opened it, your change is refused
+  with a "changed by someone else — Reload" message instead of overwriting theirs.
+- **Administrator** — everything IT Staff can do, plus user counts on the dashboard and User Management:
+  list/search/filter users, create a user, edit name/email/role/active state, and set a new initial
+  password for a user.
 
 There is no self-service "forgot password": an Administrator resets it from User Management. The Development
 Requester Selector from Lab 2 no longer exists — ticket ownership now comes entirely from the
@@ -165,10 +173,25 @@ authenticated session.
 
 ```bash
 cd server
-npm test   # Vitest + Supertest (API tests)
+npm test   # Vitest + Supertest (unit + API tests)
 cd ../client
 npm test   # Vitest (UI tests)
 ```
+
+The server tests create their own disposable `@example.test` users and tickets every run, so the database
+they run against slowly fills up with test data. To keep the database you click around in clean, point
+the server tests at a separate one (PowerShell, from `server/`; one-time setup first):
+
+```bash
+docker exec toktickit-db-maii psql -U toktickit -d toktickit -c "CREATE DATABASE toktickit_test;"
+```
+```bash
+$env:DATABASE_URL="postgresql://toktickit:toktickit@localhost:5433/toktickit_test?schema=public"; npx prisma migrate deploy; npx prisma db seed; npm test
+```
+
+Afterwards, close that terminal (or clear `$env:DATABASE_URL`) before running the app normally, or the
+app will use the test database too. If `toktickit_test` grows very large, drop and recreate it the same
+way.
 
 ### End-to-end tests (Playwright)
 
@@ -183,20 +206,30 @@ To run the suite, the dev Postgres container must be running/seeded (steps 3–4
 must already be started (`cd server && npm run dev`) — Playwright only auto-starts the Vite client:
 
 ```bash
-npx playwright test e2e/lab-03
+npx playwright test e2e/lab-03 e2e/lab-04
 ```
 
-This runs `e2e/lab-03/` (23 tests): authentication (login, mandatory password change, logout, inactive
-account), staff ticket operations (IT Staff and Administrator), user administration, a Requester
-regression journey, and `visual-responsive.spec.ts` (keyboard navigation plus desktop/tablet/mobile layout
-checks, with baseline screenshots saved to `artifacts/lab-03/screenshots/`).
+This runs 43 tests:
+- `e2e/lab-03/` — authentication (login, mandatory password change, logout, inactive account), staff
+  ticket operations, user administration, a Requester regression journey, and desktop/tablet/mobile
+  layout plus keyboard checks.
+- `e2e/lab-04/` — Actions Taken (two staff on one ticket, validation, closed tickets), the resolution gate
+  and status history, stale-update conflicts, dashboards (every card's number matches the list it opens),
+  Lab 4 layout and keyboard-only checks, a full Requester → IT Staff → Administrator journey, and
+  double-click / network-failure protection.
 
 The specs create their own disposable `@example.test` users through the Administrator API, using the
 `e2e-bootstrap-admin@example.edu` account described above, so they never log into or change any of the
-demo accounts in §4a.
+demo accounts in §4a. They do add test users and tickets to whichever database the backend is using, so
+for a clean demo database start the backend against `toktickit_test` while running them.
 
-Run it scoped to `e2e/lab-03`, as shown. `e2e/lab-02` is obsolete: its specs drive the Development
-Requester Selector, which Lab 3 removed, so they no longer pass.
+**Screenshots.** The layout specs only *check* layouts by default. To also save baseline screenshots
+(to `artifacts/lab-03/screenshots/` and `artifacts/lab-04/screenshots/`), run with
+`CAPTURE_SCREENSHOTS=1` (PowerShell: `$env:CAPTURE_SCREENSHOTS="1"; npx playwright test e2e/lab-04`).
+This is off by default so an everyday regression run never overwrites committed evidence.
+
+(The Lab 2 Playwright specs were removed in Lab 4: they drove the Development Requester Selector, which
+Lab 3 replaced with real login.)
 
 ## Project structure
 
@@ -206,29 +239,37 @@ toktickit/
 │   └── tests/
 │       ├── lab-01/            # Vitest UI tests (Lab 1)
 │       ├── lab-02/            # Vitest UI tests (Lab 2)
-│       └── lab-03/            # Vitest UI tests (Lab 3)
+│       ├── lab-03/            # Vitest UI tests (Lab 3)
+│       └── lab-04/            # Vitest UI tests (Lab 4)
 ├── server/                    # Node.js + Express + TypeScript backend
 │   ├── prisma/                # Prisma schema, migrations, seed + reset-dev-accounts scripts
 │   └── tests/
 │       ├── lab-01/            # Supertest API tests (Lab 1)
 │       ├── lab-02/            # Supertest API tests (Lab 2)
-│       └── lab-03/            # Supertest API + unit tests (Lab 3)
+│       ├── lab-03/            # Supertest API + unit tests (Lab 3)
+│       ├── lab-04/            # Supertest API, unit, migration/seed and performance-smoke tests (Lab 4)
+│       └── globalSetup.ts     # creates the session table once before the parallel test workers start
 ├── e2e/
-│   ├── lab-02/                # Playwright end-to-end tests (obsolete — see §6)
-│   └── lab-03/                # Playwright end-to-end tests (Lab 3)
+│   ├── lab-03/                # Playwright end-to-end tests (Lab 3)
+│   └── lab-04/                # Playwright end-to-end tests (Lab 4)
 ├── docs/
 │   ├── lab-01/                # Lab 1 documentation
 │   ├── lab-02/                # Lab 2 documentation
-│   └── lab-03/                # Lab 3 documentation
+│   ├── lab-03/                # Lab 3 documentation
+│   └── lab-04/                # Lab 4 documentation
 ├── artifacts/
 │   ├── lab-02/screenshots/    # Playwright-captured viewport screenshots (desktop/tablet/mobile)
 │   │   ├── create-ticket/
 │   │   ├── my-tickets/
 │   │   └── ticket-detail/
-│   └── lab-03/screenshots/    # Playwright-captured baseline screenshots (desktop/tablet/mobile)
-│       ├── staff-queue/
-│       ├── staff-ticket-detail/
-│       └── user-management/
+│   ├── lab-03/screenshots/    # Playwright-captured baseline screenshots (desktop/tablet/mobile)
+│   │   ├── staff-queue/
+│   │   ├── staff-ticket-detail/
+│   │   └── user-management/
+│   └── lab-04/screenshots/    # Lab 4 baselines (CAPTURE_SCREENSHOTS=1, see §6)
+│       ├── staff-dashboard/
+│       ├── requester-dashboard/
+│       └── actions-taken/
 ├── .gitignore
 └── README.md
 ```
