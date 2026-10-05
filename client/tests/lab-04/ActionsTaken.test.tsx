@@ -196,6 +196,24 @@ describe("UI-13: duplicate-create protection (AC-14, AC-37)", () => {
   });
 });
 
+// Issue 4-6 (Lab 4) — after an asynchronous save, focus must return to Add Action (ui-spec.md §9), not
+// fall to <body>. This guards the behaviour, but jsdom's timing can't reproduce the original race (an
+// animation frame firing before React re-created the button), so it also passes on the old code. The
+// real-browser proof is RESP-04 under load: 1 failure in 8 before the fix, 12/12 after (tests.md §7).
+describe("Focus returns to Add Action after a save (ui-spec.md §9)", () => {
+  it("focuses the re-created Add Action button once the saved Action is shown", async () => {
+    let finishSave: (a: ActionTaken) => void = () => undefined;
+    vi.spyOn(api, "createAction").mockImplementation(() => new Promise((resolve) => (finishSave = resolve)));
+    const user = userEvent.setup();
+    renderSection();
+    const form = await openAddForm(user);
+    await user.type(within(form).getByLabelText("Action Description"), "Swapped the network cable.");
+    await user.click(within(form).getByRole("button", { name: "Save Action" }));
+    finishSave(makeAction({ id: 9, description: "Swapped the network cable.", status: "PLANNED", result: null }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add Action" })).toHaveFocus());
+  });
+});
+
 describe("UI-14: server validation errors keep the input (AC-38)", () => {
   it("places each 400 field message under its field and keeps what was typed", async () => {
     vi.spyOn(api, "createAction").mockRejectedValue(

@@ -16,6 +16,14 @@ const VIEWPORTS = {
   mobile: { width: 375, height: 812 },
 } as const;
 
+// Issue 4-6 (Lab 4) — screenshots are written only when asked for (CAPTURE_SCREENSHOTS=1). These
+// files are graded Lab 3 evidence; when this spec runs as everyday regression (e2e/lab-03 alongside
+// e2e/lab-04) it must not overwrite them with whatever data the current database happens to hold.
+// The layout assertions in every test still run either way.
+async function captureScreenshot(page: Page, path: string) {
+  if (process.env.CAPTURE_SCREENSHOTS === "1") await page.screenshot({ path, fullPage: true });
+}
+
 async function assertNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth
@@ -120,7 +128,7 @@ for (const [viewportName, viewportSize] of Object.entries(VIEWPORTS)) {
         await expect(page.locator(".table-responsive")).toBeVisible();
       }
 
-      await page.screenshot({ path: `artifacts/lab-03/screenshots/staff-queue/queue-loaded-${viewportName}.png`, fullPage: true });
+      await captureScreenshot(page, `artifacts/lab-03/screenshots/staff-queue/queue-loaded-${viewportName}.png`);
     });
 
     // RESP-02 (AC-34)
@@ -140,7 +148,7 @@ for (const [viewportName, viewportSize] of Object.entries(VIEWPORTS)) {
         await expect(page.locator(".table-responsive")).toBeVisible();
       }
 
-      await page.screenshot({ path: `artifacts/lab-03/screenshots/user-management/user-list-${viewportName}.png`, fullPage: true });
+      await captureScreenshot(page, `artifacts/lab-03/screenshots/user-management/user-list-${viewportName}.png`);
     });
 
     // RESP-03 — tablet two-column layout, no clipping/overlap (checked at every viewport for the
@@ -160,7 +168,7 @@ for (const [viewportName, viewportSize] of Object.entries(VIEWPORTS)) {
         expect(categoryBox?.y).toBeCloseTo(relatedSystemBox!.y, 0);
       }
 
-      await page.screenshot({ path: `artifacts/lab-03/screenshots/staff-ticket-detail/detail-view-${viewportName}.png`, fullPage: true });
+      await captureScreenshot(page, `artifacts/lab-03/screenshots/staff-ticket-detail/detail-view-${viewportName}.png`);
     });
   });
 }
