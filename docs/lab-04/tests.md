@@ -547,11 +547,25 @@ Found during implementation:
 - **E2E-09 (the cross-role journey) gets a 90 s limit.** It covers three users and about 30 UI steps,
   about 15 s on its own, so the default 30 s is too tight under a full parallel run. Its fixture names
   are unique per run (the Reassign-picker lesson from Issue 4-4).
+- **Three E2E timing races (found in PR #60 review, fixed in the tests).** On a slower machine the
+  tests acted faster than the app could finish, so the failures were in the test steps, not the app:
+  - E2E-09 changed the status while the IT Priority save was still running, so the status change went
+    out with the old version and was refused as stale (409). It now waits for each save to finish
+    (the control is enabled again) before the next one, and waits for the Queue search (300 ms
+    debounce) to show exactly the one matching ticket before clicking it.
+  - RESP-04 (Lab 4) started pressing Tab as soon as the Queue heading appeared, before the list had
+    loaded. It now waits for the ticket link first.
+  - RESP-03 (Lab 3) clicked a search result just as the debounced search re-drew the list. It now
+    opens the ticket directly by its id, since the test is about the detail page's layout; search
+    is still covered by `staff-ticket-flow.spec.ts`.
+
+  Verified: three consecutive full runs (43/43), then the three specs repeated 5 times with 8 parallel
+  workers (140/140).
 - **Formal regression sign-off (REG-01–03).** Run on `feature/4-6-Final-hardening-and-E2E`:
   - `cd server && npm test`: 367/367 (Lab 1–3: 188, Lab 4: 179);
   - `cd client && npm test`: 145/145 (Lab 2–3: 75, Lab 4: 70);
   - `npx playwright test e2e/lab-03 e2e/lab-04`: 43/43 (Lab 3: 23, Lab 4: 20), three consecutive
-    full runs after the last change.
+    full runs after the last change (the PR #60 race fixes above).
 
   All results are from runs on `toktickit_test`; the main dev DB stayed at its 11 seed users.
 - **RESP-05 baseline screenshots** (15 files in `artifacts/lab-04/screenshots/{staff-dashboard,

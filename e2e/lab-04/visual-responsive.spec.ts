@@ -160,6 +160,9 @@ test("keyboard-only: drill down, record an Action, change status — with a visi
   await tabTo(/^View My open tickets \(1\)$/);
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: "Ticket Queue" })).toBeVisible();
+  // The heading renders before the list arrives; wait for the row, or Tab runs past the filters
+  // before there is a ticket link to reach (PR #60 review).
+  await expect(page.getByRole("link", { name: kbFixture.ticketNumber })).toBeVisible();
   await tabTo(new RegExp(`^${kbFixture.ticketNumber}$`));
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: kbFixture.ticketNumber })).toBeVisible();

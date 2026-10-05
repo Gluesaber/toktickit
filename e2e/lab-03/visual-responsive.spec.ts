@@ -54,6 +54,7 @@ async function openNavIfCollapsed(page: Page) {
 
 let admin: Awaited<ReturnType<typeof createReadyUser>>;
 let ticketNumber: string;
+let ticketId: number;
 // Still on its initial password (mustChangePassword: true), so logging in lands on Change Password.
 // Only ever logged into, never submitted, so it stays in that state for all three viewport tests.
 let gatedUser: Awaited<ReturnType<typeof createUser>>;
@@ -67,6 +68,7 @@ test.beforeAll(async () => {
   ]);
   admin = readyAdmin;
   ticketNumber = requesterFixture.ticketNumber;
+  ticketId = requesterFixture.ticketId;
   gatedUser = gated;
   await adminContext.dispose();
 });
@@ -155,10 +157,10 @@ for (const [viewportName, viewportSize] of Object.entries(VIEWPORTS)) {
     // baseline shot; the specific column-alignment assertion only applies at tablet width).
     test("Staff Ticket Detail — no horizontal scroll, tablet keeps the two-column classification row", async ({ page }) => {
       await loginAs(page, admin.email, admin.password);
-      // Issue 4-5 (Lab 4) — login lands on the Dashboard now; the Queue is where the search box is.
-      await page.goto("/queue");
-      await page.getByLabel(/^search/i).fill(ticketNumber);
-      await page.getByRole("link", { name: ticketNumber }).first().click();
+      // Issue 4-6 (Lab 4) — open the Ticket directly. Searching the Queue first raced its 300 ms search
+      // debounce: the click could land just as the filtered list replaced the row (PR #60 review), and
+      // this test is about the detail page's layout, not search (staff-ticket-flow covers search).
+      await page.goto(`/queue/${ticketId}`);
       await expect(page.getByRole("heading", { name: ticketNumber })).toBeVisible();
       await assertNoHorizontalOverflow(page);
 

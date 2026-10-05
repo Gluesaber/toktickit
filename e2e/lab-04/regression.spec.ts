@@ -55,15 +55,28 @@ test.describe("Final regression", () => {
     await login(st, staff.email, staff.password);
     await st.getByRole("link", { name: /^View Unassigned/ }).click();
     await st.getByLabel(/^search/i).fill(tag);
-    await st.getByRole("link", { name: ticketNumber }).first().click();
+    // Wait for the 300 ms search debounce and the filtered list: until then the row on screen can be
+    // replaced mid-click (PR #60 review). The tag is unique, so exactly one visible link remains.
+    await expect(st).toHaveURL(/[?&]search=/);
+    await expect(st.getByRole("link", { name: /^TK-/ })).toHaveCount(1);
+    await st.getByRole("link", { name: ticketNumber }).click();
     await st.getByRole("button", { name: "Claim" }).click();
     await expect(st.locator(".card", { has: st.getByRole("heading", { name: "Ownership" }) }).getByText(staff.name)).toBeVisible();
-    await st.getByLabel(/it priority/i).selectOption("URGENT");
+    // Each save bumps the Ticket's version. Wait for it to finish (the control is disabled while it
+    // saves) before the next change, or that change is sent with the old version and refused as stale
+    // — a real user can't act that fast, the test can (PR #60 review).
+    const itPriority = st.getByLabel(/it priority/i);
+    await itPriority.selectOption("URGENT");
+    await expect(itPriority).toHaveValue("URGENT");
+    await expect(itPriority).toBeEnabled();
     await st.getByLabel(/add an internal note/i).fill("Ordered a new feed roller.");
     await st.getByRole("button", { name: "Post Note" }).click();
     await expect(st.getByText("Ordered a new feed roller.")).toBeVisible();
     await st.getByLabel(/change status/i).selectOption("OPEN");
-    await expect(st.getByText("Open", { exact: true }).first()).toBeVisible();
+    const statusCard = st.locator(".card", { has: st.getByRole("heading", { name: "Status", exact: true }) });
+    // The badge, not the text: until the save lands, "Open" is also an <option> in the select.
+    await expect(statusCard.locator(".zg-badge", { hasText: /^Open$/ })).toBeVisible();
+    await expect(st.getByLabel(/change status/i)).toBeEnabled();
 
     const card = actionsCard(st);
     await card.getByRole("button", { name: "Add Action" }).click();
