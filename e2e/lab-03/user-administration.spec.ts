@@ -20,9 +20,11 @@ test.describe("Administrator User Management", () => {
     await page.getByLabel("Email").fill(admin.email);
     await page.getByLabel("Password").fill(admin.password);
     await page.getByRole("button", { name: "Log In" }).click();
-    await expect(page.getByRole("heading", { name: "Ticket Queue" })).toBeVisible();
+    // Issue 4-5 (Lab 4) — every role now lands on its Dashboard after login (FR-15). The Admin dashboard's
+    // Quick Actions also has a "User Management" link, so the click is scoped to the Primary nav.
+    await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
 
-    await page.getByRole("link", { name: "User Management" }).click();
+    await page.getByLabel("Primary").getByRole("link", { name: "User Management" }).click();
     await expect(page.getByRole("heading", { name: "User Management" })).toBeVisible();
 
     // Create a user through the UI.
@@ -82,7 +84,9 @@ test.describe("Administrator User Management", () => {
     await page.getByLabel("Email").fill(admin.email);
     await page.getByLabel("Password").fill(admin.password);
     await page.getByRole("button", { name: "Log In" }).click();
-    await page.getByRole("link", { name: "User Management" }).click();
+    // Issue 4-5 (Lab 4) — scoped to the Primary nav: the Admin dashboard's Quick Actions also has a
+    // "User Management" link.
+    await page.getByLabel("Primary").getByRole("link", { name: "User Management" }).click();
 
     await page.getByLabel(/^search/i).fill(admin.email);
     const selfRow = page.getByRole("row").filter({ hasText: admin.email });

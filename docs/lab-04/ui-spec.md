@@ -101,6 +101,19 @@ unlike a Cancelled Ticket.
 - **Row 4**: the "Urgent and recent" list (Ticket Number, Summary, IT Priority badge, status badge, owner
   or "Unassigned", updated time).
 
+### 3.3a Labsheet wireframe elements *(added in Issue 4-5)*
+
+The labsheet's two dashboard wireframes are followed where they fit the metrics in specification §5.5:
+- a "Welcome back, <name>!" line under the page title;
+- a Refresh button;
+- "View all" links on the lists;
+- a **Quick Actions** panel:
+  - Requester: Create Ticket and View My Tickets;
+  - IT Staff: Search Tickets and My Queue;
+  - Administrator: also User Management.
+
+The wireframes' "+N from yesterday" trend lines are deliberately not shown (specification §11).
+
 ### 3.4 Administrator Dashboard (FR-14)
 
 The full IT Staff Dashboard, plus a final "Users" card group: "Active Requesters / IT Staff /
@@ -120,6 +133,10 @@ Administrators" (each linking to `/admin/users?role=…`) and "Inactive users" (
 - When a list opens from a drill-down, an inline chip shows the applied filters ("Showing: All open ·
   Unassigned") next to "Clear filters". The total shown matches the card the user came from (AC-26/27).
 - Queue rows show the "Requester says resolved" pill when the indication is set.
+- *Issue 4-5:*
+  - The Queue's Ticket Owner filter lists active staff by name, with "(me)" for the viewer, alongside
+    All and Unassigned. The Lab 3 filter only offered Unassigned, from before Tickets could have owners.
+  - My Tickets' Status filter lists all 8 statuses. The Lab 2 filter still offered only "New".
 
 ## 5. IT Staff Ticket Detail (extended)
 

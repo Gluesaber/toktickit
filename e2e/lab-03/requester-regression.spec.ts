@@ -18,7 +18,8 @@ test("Requester: create tickets, comment, mark resolved, cancel a different tick
   await page.getByLabel("Email").fill(requester.email);
   await page.getByLabel("Password").fill(requester.password);
   await page.getByRole("button", { name: "Log In" }).click();
-  await expect(page.getByRole("heading", { name: "My Tickets" })).toBeVisible();
+  // Issue 4-5 (Lab 4) — every role now lands on its Dashboard after login (FR-15).
+  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
 
   async function createTicket(summary: string): Promise<string> {
     // Always go via My Tickets first: if we're already on /tickets/new (its own success view
