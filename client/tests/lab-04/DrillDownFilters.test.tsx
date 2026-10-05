@@ -161,9 +161,15 @@ describe("UI-29: Dashboard navigation and landing (FR-15, AC-41)", () => {
     const nav = await screen.findByRole("navigation", { name: "Primary" });
     const names = within(nav).getAllByRole("link").map((l) => l.textContent);
     expect(names).toEqual(links);
-    await waitFor(() => expect(window.location.pathname).toBe("/dashboard"));
-    expect(within(nav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
+    // PR #59 review: the URL changes the moment navigation starts, a little before React finishes
+    // re-rendering the nav — so on a busy machine aria-current could be checked in that gap. Wait for
+    // the Dashboard itself to render, then check the nav inside waitFor, re-querying it each time.
     expect(await screen.findByRole("heading", { name: "Dashboard", level: 1 })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(window.location.pathname).toBe("/dashboard");
+      const currentNav = screen.getByRole("navigation", { name: "Primary" });
+      expect(within(currentNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
+    });
   });
 });
 

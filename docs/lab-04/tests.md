@@ -511,3 +511,11 @@ Found during implementation:
   Under a full parallel Playwright run, the Lab 3 visual spec's desktop User Management step once took
   longer than its 5 s wait loading that list. It passed in every other run. That is environment size,
   not an app regression; resetting `toktickit_test` occasionally keeps runs fast.
+- **UI-29 was flaky under heavy CPU load (PR #59 review, fixed).** The test waited for the URL to become
+  `/dashboard` and then checked `aria-current` immediately. The URL changes as soon as navigation
+  starts, slightly before React finishes re-rendering the nav, so a busy machine could check in that
+  gap (the reviewer saw 143/144).
+
+  The test now waits for the Dashboard heading, then checks the URL and `aria-current` inside
+  `waitFor`, re-querying the nav. Verified with five normal client runs and three rounds of two full
+  suites running at once (144/144 every time).
