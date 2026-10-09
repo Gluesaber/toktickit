@@ -89,6 +89,8 @@ npx prisma db seed
 
 To undo the Lab 4 migration, run its rollback script, which removes only the Lab 4 tables and columns
 (`server/prisma/migrations/20261003120000_lab4_actions_taken/rollback.sql` explains what is lost).
+The demo tickets lose their seed key, so if you later re-apply the migration and seed again, you get a
+second set of 14 demo tickets. To get back exactly where you were, restore the backup instead.
 Run these from the repository root:
 
 ```bash

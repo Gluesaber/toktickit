@@ -591,8 +591,9 @@ New error codes:
   release PR goes from `lab4-staging` into `main`. Every Issue is in Done on the Kanban board.
 - `docs/lab-04/{specification, tests, ui-spec, api-spec, reviewer, ai-use}.md` are complete. The doc sweep
   finds no `Pending`, `TODO`, `TBD` or `- [ ]` left anywhere.
-- Screenshots are captured under `artifacts/lab-04/screenshots/{staff-dashboard, requester-dashboard,
-  actions-taken, ticket-workflow, regression}/`.
+- Baseline screenshots are committed under `artifacts/lab-04/screenshots/{staff-dashboard,
+  requester-dashboard, actions-taken}/`. The state, workflow and regression captures go in the submission
+  PDF (`ui-spec.md` §10).
 - The submission PDF uses "Answer Part 1" through "Answer Part 9".
 
 ## 11. Assumptions and Decisions
