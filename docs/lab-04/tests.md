@@ -157,6 +157,7 @@ The labsheet requires these coverage types, mapped to concrete levels and IDs be
 | UI-02 | ui-spec §3.1 | Pending request | Loading state, no numbers rendered | Pass |
 | UI-03 | AC-28 | All-zero response, empty lists | 0 values and empty-list sentences, no error | Pass |
 | UI-04 | AC-32 | `500`, then Retry succeeds | Failure alert with no numbers. Retry re-fetches and shows numbers | Pass |
+| UI-04b | AC-29 | `403` *(added in Issue 4-7, §7)* | Forbidden panel, no numbers | Pass |
 | UI-05 | AC-30 | Response with and without `users` | The Users group renders only when present | Pass |
 | UI-06 | AC-31 | `lists.myActions` rows | Each links to `/queue/:ticketId#actions` and shows Action status and Follow-up badges | Pass |
 | STYLE-01 | ui-spec §1.2, §9 | Metric card markup | Value is text. Link accessible name includes the metric ("View 3 unassigned tickets") | Pass |
@@ -256,7 +257,7 @@ API rows tagged *Authz* above: API-01, 02, 17, 19, 28, 34, 37, 45 and 46. They c
 | AC-05 | API-05, UI-17, E2E-05 | AC-26 | API-43, UI-01, UI-27, E2E-06 |
 | AC-06 | API-06, UI-12, E2E-05 | AC-27 | API-40, UI-07, UI-28, E2E-07 |
 | AC-07 | API-07, UI-12 | AC-28 | API-36, UI-03, UI-08, E2E-07 |
-| AC-08 | API-08, E2E-05 | AC-29 | API-37, API-46, UI-10 |
+| AC-08 | API-08, E2E-05 | AC-29 | API-37, API-46, UI-04b, UI-10 |
 | AC-09 | API-10, E2E-01 | AC-30 | API-45, UI-05, E2E-08 |
 | AC-10 | API-11, UI-15 | AC-31 | API-44, UI-06 |
 | AC-11 | API-12, E2E-01 | AC-32 | UI-04, UI-09 |
@@ -292,9 +293,9 @@ that checklist is the final sign-off.
 
 ## 6. Final Results
 
-Updated as each Issue lands. **As of Issue 4-6 (Final hardening and E2E): all 112 planned rows are
-implemented and passing.** Issue 4-7 (Final Doc) does the final staleness sweep. UNIT-06 (the Asia/Bangkok window) is a dashboard
-rule and lands with Issue 4-5.
+Updated as each Issue lands. **Final, as of Issue 4-7 (Final Doc): all 112 planned rows, plus one row
+added during the sign-off (UI-04b), are implemented and passing.** The Issue 4-7 sweep checked every row
+against a fresh-clone run (§7).
 
 | Level | Planned | Actual so far | Passing | Failing | Deferred |
 |---|---|---|---|---|---|
@@ -302,12 +303,12 @@ rule and lands with Issue 4-5.
 | API (incl. Authz/Workflow) | 49 | 49 (API-01–49) | 49 | 0 | 0 |
 | Migration / seed | 4 | 4 (MIG-01–04) | 4 | 0 | 0 |
 | Performance smoke | 2 | 2 (PERF-01–02) | 2 | 0 | 0 |
-| UI component | 30 | 30 (UI-01–30) | 30 | 0 | 0 |
+| UI component | 30 | 31 (UI-01–30, UI-04b) | 31 | 0 | 0 |
 | UI style | 2 | 2 (STYLE-01–02) | 2 | 0 | 0 |
 | Regression | 3 | 3 (REG-01–03) | 3 | 0 | 0 |
 | Responsive | 5 | 5 (RESP-01–05) | 5 | 0 | 0 |
 | E2E | 10 | 10 (E2E-01–10) | 10 | 0 | 0 |
-| **Total** | **112** | **112** | **112** | **0** | **0** |
+| **Total** | **112** | **113** | **113** | **0** | **0** |
 
 Baseline before any Lab 4 change, confirmed on `feature/4-2-Actions-Taken-backend` at
 `lab4-staging`'s tip (`494d1c0`): 188 server + 75 client Vitest, all passing.
@@ -571,6 +572,28 @@ Found during implementation:
 - **RESP-05 baseline screenshots** (15 files in `artifacts/lab-04/screenshots/{staff-dashboard,
   requester-dashboard, actions-taken}/`) were captured once with `CAPTURE_SCREENSHOTS=1` against a
   throwaway database (`toktickit_demo`: migrated, seeded, then dropped).
+- **Issue 4-7: `ui-spec.md` §11 signed off.** Checking each item against a named test found one gap:
+  the Staff Dashboard's forbidden panel (AC-29) had code but no test; only the Requester side (UI-10)
+  did. UI-04b now covers it (`StaffDashboard.test.tsx`). The client suite is now 146 (Lab 4: 71).
+- **Issue 4-7: fresh-clone verification of the README, on Windows.** `lab4-staging` at `56a7835` was
+  cloned into an empty folder and every README step was followed as written, against a brand-new
+  Postgres container (a different name and port, as README §3 allows):
+  - §1–§2: `npm install` in `client/` and `server/`; `copy` of both `.env.example` files.
+  - §4: `npx prisma migrate dev --name init` applied all 7 migrations to the empty database and created
+    no new migration. `npx prisma db seed` gave 11 users and 14 demo tickets (16 Actions, 45 history
+    rows). A second seed left every count unchanged.
+  - §5: both dev servers started and the Login screen loaded.
+  - §6: `server` 367/367 on the first run, on a database with no `session` table (the Issue 4-6
+    `globalSetup` fix). `client` 145/145 (UI-04b was added afterwards, on the 4-7 branch). Root
+    `npm install`, `npx playwright install chromium`, then `npx playwright test e2e/lab-03 e2e/lab-04`:
+    43/43. `git status` in the clone stayed clean, so no committed screenshot was rewritten.
+  - §4 rollback and upgrade: `rollback.sql` removed the Lab 4 tables and columns and kept every user and
+    Ticket (135 users and 455 Tickets before and after). The "Upgrading an existing Lab 3 database" steps
+    (`pg_dump`, `migrate deploy`, `prisma generate`, seed) then brought it back to Lab 4.
+
+  One finding: after a rollback, the old demo tickets have lost their `seedKey`, so seeding again adds a
+  second set of 14. That follows from what `rollback.sql` says it removes, but the README didn't mention
+  it; now it does. The container and the clone were deleted afterwards.
 - **Known, accepted:** the Login screen's session check (`GET /api/auth/me`) answers 401 before anyone
   has logged in, and the browser logs that as a console error. This is the documented Lab 3 contract
   (`docs/lab-03/api-spec.md` §1), so E2E-08 counts console errors from login onward. A long name in the

@@ -307,9 +307,19 @@ Lab 2 §8 and Lab 3 §10 carry forward. Lab 4 additions:
 
 ## 10. Screenshot Plan
 
-Captured from the disposable demo database (never the shared dev DB or a documented seed account through
-the browser) under `artifacts/lab-04/screenshots/`. "3 vp" means desktop (1280), tablet (820) and mobile
-(375).
+Captured from a disposable demo database (never the shared dev DB or a documented seed account through
+the browser). "3 vp" means desktop (1280), tablet (820) and mobile (375).
+
+Two kinds of capture (decided in Issue 4-7):
+- **Committed baselines** in `artifacts/lab-04/screenshots/{staff-dashboard, requester-dashboard,
+  actions-taken}/`, the folders labsheet §12 requires: the 15 files RESP-05 writes with
+  `CAPTURE_SCREENSHOTS=1`. They show the Staff, Admin and Requester dashboards, and Ticket Detail with
+  Actions (staff, and read-only for the Requester), each at 3 vp.
+- **Submission evidence**: the state captures below (loading, empty, validation, conflict, workflow,
+  regression and so on) go into the submission PDF under the matching "Answer Part", not into the
+  repository.
+
+The full list:
 
 - `staff-dashboard/`:
   - `staff-dashboard.png` (3 vp), `admin-dashboard-user-counts.png`;
@@ -334,21 +344,49 @@ the browser) under `artifacts/lab-04/screenshots/`. "3 vp" means desktop (1280),
 
 ## 11. Visual and Accessibility Checklist
 
-Signed off before Issue 4-7 is done. Each tick must name the test or verification behind it, as in
+Signed off in Issue 4-7 against the test evidence in `tests.md`. Each tick names what backs it, as in
 Lab 3 §11.
 
-- [ ] Every new badge (Action status, Follow-up, Requester indication) uses only §1 tokens and always has
-      a text label.
-- [ ] Dashboard cards show correct values, readable labels and working drill-downs at all 3 viewports.
-- [ ] Zero, empty, loading, failure and forbidden states render as specified on both dashboards.
-- [ ] The Actions Taken table becomes cards below 992px, with no horizontal page scroll at 375px or 820px.
-- [ ] Editable vs read-only fields are visually distinct, and locked Actions show no edit control.
-- [ ] Validation messages appear under the right field and in the form summary, and input is kept after
-      errors.
-- [ ] The disabled "Resolved" option shows its reason as visible text.
-- [ ] Stale-update conflict banner, Reload, and input retention all work.
-- [ ] Keyboard-only: full Action create/edit flow, dashboard drill-downs and status change are reachable
-      with a visible focus ring.
-- [ ] No clipping, overlap or horizontal overflow on any Lab 4 screen at 375, 820 and 1280.
-- [ ] The nav shows "Dashboard" first for every role, with `aria-current` on the active link.
-- [ ] No console errors on any screen during the E2E run, and no placeholder text or dead links.
+- [x] Every new badge (Action status, Follow-up, Requester indication) uses only §1 tokens and always has
+      a text label. *STYLE-02 (all four Action statuses and Follow-up: distinct class plus text). In
+      `zen-green.css`, every new badge rule uses a §1 token, apart from `#d9ede1`, one of the hex pairs
+      Lab 3's §1.2 already sanctions. The Requester indication is a sentence with a date (UI-24).*
+- [x] Dashboard cards show correct values, readable labels and working drill-downs at all 3 viewports.
+      *Values: API-42 checks each metric against an independent database count. E2E-06 follows every
+      staff card and checks that the Queue total equals the card. E2E-07 does the same for the Requester.
+      Labels and links: UI-01, UI-07, STYLE-01. Layout at 1280/820/375: RESP-01.*
+- [x] Zero, empty, loading, failure and forbidden states render as specified on both dashboards.
+      *Staff: UI-02 loading, UI-03 zero/empty, UI-04 failure and Retry, UI-04b forbidden (added in this
+      sign-off: only the Requester side had a test). Requester: UI-08 zero/empty, UI-09 failure,
+      UI-10 forbidden. E2E-07 shows a brand-new Requester's zeros in a real browser.*
+- [x] The Actions Taken table becomes cards below 992px, with no horizontal page scroll at 375px or 820px.
+      *RESP-02 checks the table at 1280 and the cards at 820 and 375, with `scrollWidth ≤ clientWidth` at
+      each. The breakpoint moved from 768 to 992 in Issue 4-6, after RESP-02 found an overflow at 820.*
+- [x] Editable vs read-only fields are visually distinct, and locked Actions show no edit control.
+      *UI-15: Completed and Cancelled Actions have no Edit button, and View mode is a read-only summary,
+      not a disabled form. UI-18: the Requester sees every field as text, with no form. UI-19: a Closed
+      Ticket shows a read-only note instead of Add Action. Requested Priority stays a read-only badge
+      beside the editable IT Priority select (unchanged from Lab 3).*
+- [x] Validation messages appear under the right field and in the form summary, and input is kept after
+      errors. *UI-12 (client checks), UI-14 (server `400` with `fields`: message under each field, summary,
+      input kept), UI-17 (`INVALID_ASSIGNEE` under Assignee), E2E-05 in a real browser, E2E-10 (input
+      kept after a network failure).*
+- [x] The disabled "Resolved" option shows its reason as visible text. *UI-20 (visible reason, linked by
+      `aria-describedby`), E2E-02.*
+- [x] Stale-update conflict banner, Reload, and input retention all work. *UI-16 (Action edit), UI-23
+      (status change), UI-26 (Requester Cancel), E2E-04 (two real browser sessions on one Ticket).*
+- [x] Keyboard-only: full Action create/edit flow, dashboard drill-downs and status change are reachable
+      with a visible focus ring. *RESP-04: Tab/Enter only from the dashboard drill-down through Add
+      Action, Save and a status change, checking for a visible outline or box-shadow at every stop. The
+      only custom button class, `.btn-zg-primary`, has its own `:focus-visible` rule.*
+- [x] No clipping, overlap or horizontal overflow on any Lab 4 screen at 375, 820 and 1280. *RESP-01
+      (Staff, Admin and Requester dashboards), RESP-02 (Staff Ticket Detail), RESP-03 (Requester Ticket
+      Detail); the Lab 3 screens are re-checked by `e2e/lab-03/visual-responsive.spec.ts`. The 15 baseline
+      screenshots in `artifacts/lab-04/screenshots/` were also inspected by eye.*
+- [x] The nav shows "Dashboard" first for every role, with `aria-current` on the active link. *UI-29,
+      E2E-08.*
+- [x] No console errors on any screen during the E2E run, and no placeholder text or dead links. *E2E-08
+      visits every screen per role and collects zero console errors from login onward. The one known
+      exception is the Login screen's own `401` session check before anyone logs in (the documented
+      Lab 3 contract, `tests.md` §7). A search of `client/src` and `server/src` finds no `console.log`
+      (other than the server's start-up line), `TODO` or `FIXME`.*

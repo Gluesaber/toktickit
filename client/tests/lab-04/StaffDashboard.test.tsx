@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import StaffDashboardPage from "../../src/pages/StaffDashboardPage.js";
 import { AuthProvider } from "../../src/context/AuthContext.js";
 import * as api from "../../src/api.js";
-import type { StaffDashboard, User } from "../../src/api.js";
+import { ApiError, type StaffDashboard, type User } from "../../src/api.js";
 
 // docs/lab-04/tests.md §2.9 — client/tests/lab-04/StaffDashboard.test.tsx (UI-01..06, STYLE-01).
 
@@ -136,6 +136,17 @@ describe("UI-04: safe failure and retry (AC-32)", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(spy).toHaveBeenCalledTimes(2));
     expect(within(await screen.findByRole("region", { name: "Unassigned" })).getByText("3")).toBeInTheDocument();
+  });
+});
+
+// Issue 4-7 (Lab 4) — the staff side of AC-29, found missing in the ui-spec §11 sign-off: UI-10 only
+// covered the Requester dashboard's 403 panel.
+describe("UI-04b: forbidden (AC-29)", () => {
+  it("shows the access panel on a 403, with no numbers", async () => {
+    vi.spyOn(api, "getStaffDashboard").mockRejectedValue(new ApiError({ error: { code: "FORBIDDEN", message: "No." } }));
+    renderPage();
+    expect(await screen.findByText("You don't have access to this page.")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Unassigned" })).not.toBeInTheDocument();
   });
 });
 
