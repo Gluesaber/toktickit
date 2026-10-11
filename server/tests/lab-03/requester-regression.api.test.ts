@@ -176,10 +176,19 @@ describe("PATCH /api/tickets/:id/resolved-indication", () => {
 // (Issue 3-5). The IT-Staff side of the same endpoint, and the full transition matrix, are covered
 // in staff-ticket-detail.api.test.ts (API-38/39) — kept here instead of there because this is
 // Requester-specific behavior, matching every other assertion in this file.
+// Issue 4-3 (Lab 4) — the status PATCH now requires the version the client last saw
+// (docs/lab-04/specification.md BR-22). Read from the Requester's own Ticket Detail, exactly as the
+// real screen does, so these Lab 3 assertions stay what they were.
+async function currentVersion(ticketId: number): Promise<number> {
+  return (await agent.get(`/api/tickets/${ticketId}`)).body.version;
+}
+
 describe("PATCH /api/tickets/:id/status — Requester self-Cancel (API-56, AC-25, BR-24)", () => {
   it("cancels an own ticket from New", async () => {
     const ticket = await createTicketFor(agent);
-    const res = await agent.patch(`/api/tickets/${ticket.id}/status`).send({ status: "CANCELLED" });
+    const res = await agent
+      .patch(`/api/tickets/${ticket.id}/status`)
+      .send({ status: "CANCELLED", version: await currentVersion(ticket.id) });
     expect(res.status).toBe(200);
     expect(res.body.currentStatus).toBe("CANCELLED");
   });
@@ -189,7 +198,9 @@ describe("PATCH /api/tickets/:id/status — Requester self-Cancel (API-56, AC-25
     const ticket = await createTicketFor(agent);
     await prisma.ticket.update({ where: { id: ticket.id }, data: { currentStatus: "OPEN" } });
 
-    const res = await agent.patch(`/api/tickets/${ticket.id}/status`).send({ status: "CANCELLED" });
+    const res = await agent
+      .patch(`/api/tickets/${ticket.id}/status`)
+      .send({ status: "CANCELLED", version: await currentVersion(ticket.id) });
     expect(res.status).toBe(200);
     expect(res.body.currentStatus).toBe("CANCELLED");
   });
@@ -203,14 +214,18 @@ describe("PATCH /api/tickets/:id/status — Requester restrictions (API-57, BR-2
     const ticket = await createTicketFor(agent);
     await prisma.ticket.update({ where: { id: ticket.id }, data: { currentStatus: "RESOLVED" } });
 
-    const res = await agent.patch(`/api/tickets/${ticket.id}/status`).send({ status: "CANCELLED" });
+    const res = await agent
+      .patch(`/api/tickets/${ticket.id}/status`)
+      .send({ status: "CANCELLED", version: await currentVersion(ticket.id) });
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe("TRANSITION_NOT_PERMITTED");
   });
 
   it("rejects any target other than Cancelled, even one a staff member could make", async () => {
     const ticket = await createTicketFor(agent);
-    const res = await agent.patch(`/api/tickets/${ticket.id}/status`).send({ status: "OPEN" });
+    const res = await agent
+      .patch(`/api/tickets/${ticket.id}/status`)
+      .send({ status: "OPEN", version: await currentVersion(ticket.id) });
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe("TRANSITION_NOT_PERMITTED");
   });

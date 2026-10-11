@@ -66,6 +66,13 @@ model User {
   ticketsOwned Ticket[] @relation("TicketOwner")
   comments     Comment[]
   notes        Note[]
+
+  // Issue 4-2 (Lab 4) — three separate roles a User can play on an Action (specification.md §7),
+  // plus the changer of each status-history row.
+  actionsPerformed ActionTaken[]         @relation("ActionPerformedBy")
+  actionsAssigned  ActionTaken[]         @relation("ActionAssignee")
+  actionsUpdated   ActionTaken[]         @relation("ActionUpdatedBy")
+  statusChanges    TicketStatusHistory[]
 }
 
 // Only `NEW` is ever written or read through Lab 2 (BR-02); the remaining values were reserved so
@@ -118,16 +125,24 @@ model Ticket {
   itPriority                   Priority
   currentStatus                TicketStatus @default(NEW)
   requesterConfirmedResolvedAt DateTime?
+  // Issue 4-2 (Lab 4) — `version` is the optimistic-concurrency counter (BR-22, specification.md §7
+  // decision 1): NOT NULL DEFAULT 1 so every existing Ticket lands on 1 in a single migration step.
+  // `seedKey` exists only so the seed script can find its own rows again (BR-36, decision 3) — real
+  // tickets keep it NULL, and Postgres allows any number of NULLs under the unique index.
+  version                      Int          @default(1)
+  seedKey                      String?      @unique @db.VarChar(32)
   createdAt                    DateTime     @default(now())
   updatedAt                    DateTime     @updatedAt
 
-  requester     User          @relation(fields: [requesterId], references: [id])
-  owner         User?         @relation("TicketOwner", fields: [ownerId], references: [id])
-  category      Category      @relation(fields: [categoryId], references: [id])
-  relatedSystem RelatedSystem @relation(fields: [relatedSystemId], references: [id])
+  requester     User                  @relation(fields: [requesterId], references: [id])
+  owner         User?                 @relation("TicketOwner", fields: [ownerId], references: [id])
+  category      Category              @relation(fields: [categoryId], references: [id])
+  relatedSystem RelatedSystem         @relation(fields: [relatedSystemId], references: [id])
   attachments   Attachment[]
   comments      Comment[]
   notes         Note[]
+  actions       ActionTaken[]
+  statusHistory TicketStatusHistory[]
 
   @@index([requesterId])
   @@index([ownerId])
@@ -135,6 +150,68 @@ model Ticket {
   @@index([relatedSystemId])
   @@index([currentStatus])
   @@index([createdAt])
+  @@index([updatedAt])
+}
+
+// Issue 4-2 (Lab 4) — Action status lifecycle, specification.md §5.3. COMPLETED and CANCELLED are
+// final and lock the Action (BR-10).
+enum ActionStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// Issue 4-2 (Lab 4) — Actions Taken (BR-01–BR-15). Its own model rather than a `kind` flag on
+// Comment/Note: different fields, its own lifecycle, editable while not locked (§7 decision 5).
+// `performedById` is the creator and never changes (BR-04); `assigneeId` is who is responsible
+// (BR-05). Never deleted (BR-11). `clientRequestId` is never returned by the API — it only backs the
+// per-Ticket unique constraint that makes a retried create return the same row (BR-14).
+model ActionTaken {
+  id               Int          @id @default(autoincrement())
+  ticketId         Int
+  actionAt         DateTime
+  description      String       @db.Text
+  result           String?      @db.Text
+  status           ActionStatus
+  performedById    Int
+  assigneeId       Int
+  followUpRequired Boolean      @default(false)
+  followUpNote     String?      @db.Text
+  attachmentNotes  String?      @db.VarChar(500)
+  clientRequestId  String?      @db.VarChar(64)
+  version          Int          @default(1)
+  updatedById      Int?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  ticket      Ticket @relation(fields: [ticketId], references: [id])
+  performedBy User   @relation("ActionPerformedBy", fields: [performedById], references: [id])
+  assignee    User   @relation("ActionAssignee", fields: [assigneeId], references: [id])
+  updatedBy   User?  @relation("ActionUpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([ticketId, clientRequestId])
+  @@index([ticketId, actionAt, id])
+  @@index([assigneeId, status])
+}
+
+// Issue 4-2 (Lab 4) — append-only status history (BR-20, §7 decision 2). No `updatedAt` and no
+// update/delete route anywhere. `fromStatus` NULL marks the creation entry. The table is created in
+// this issue (one migration for all Lab 4 schema); the status endpoint starts writing to it in
+// Issue 4-3 — only the seed writes rows before then.
+model TicketStatusHistory {
+  id          Int           @id @default(autoincrement())
+  ticketId    Int
+  fromStatus  TicketStatus?
+  toStatus    TicketStatus
+  changedById Int
+  changedAt   DateTime      @default(now())
+
+  ticket    Ticket @relation(fields: [ticketId], references: [id])
+  changedBy User   @relation(fields: [changedById], references: [id])
+
+  @@index([ticketId, changedAt, id])
+  @@index([toStatus, changedAt])
 }
 
 // Issue 3-3 (Lab 3) — Public Comments (BR-04, BR-26–BR-28). Append-only in Lab 3: no `updatedAt`, no

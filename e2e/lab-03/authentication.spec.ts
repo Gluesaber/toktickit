@@ -36,7 +36,9 @@ test.describe("Authentication", () => {
     await page.getByLabel("Confirm New Password").fill(newPassword);
     await page.getByRole("button", { name: "Set Password" }).click();
 
-    // BR-15: continues straight into the app, no second login prompt.
+    // BR-15: continues straight into the app, no second login prompt. (It stays on /tickets — the URL
+    // this test tried to open while the gate was up — rather than the Dashboard landing page, which
+    // only applies to "/".)
     await expect(page.getByRole("heading", { name: "My Tickets" })).toBeVisible();
 
     // 4. AC-09: Logout invalidates the session server-side.

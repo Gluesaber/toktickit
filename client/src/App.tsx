@@ -9,6 +9,8 @@ import TicketDetailPage from "./pages/TicketDetailPage.js";
 import StaffTicketQueuePage from "./pages/StaffTicketQueuePage.js";
 import StaffTicketDetailPage from "./pages/StaffTicketDetailPage.js";
 import UserManagementPage from "./pages/UserManagementPage.js";
+import RequesterDashboardPage from "./pages/RequesterDashboardPage.js";
+import StaffDashboardPage from "./pages/StaffDashboardPage.js";
 
 // Issue 3-2 (Lab 3) — outer authentication gate (BR-11, BR-13, AC-10):
 //   no session          -> Login
@@ -29,6 +31,9 @@ import UserManagementPage from "./pages/UserManagementPage.js";
 // (specification.md §11) means Administrator gets everything IT Staff has (the /queue routes) *plus*
 // this extra one, not instead of it — so this is a third branch layered onto isStaff's routes, not a
 // fourth mutually-exclusive role bucket.
+// Issue 4-5 (Lab 4) — /dashboard is every role's landing screen (FR-15): "/" and unknown paths now go
+// there. The same path renders the role's own dashboard; each dashboard's API is also role-checked
+// server-side (BR-30), so this choice is navigation, not authorization.
 function AuthGate() {
   const { status, user } = useAuth();
 
@@ -50,19 +55,21 @@ function AuthGate() {
       <Route element={<AppShell />}>
         {isStaff ? (
           <>
-            <Route path="/" element={<Navigate to="/queue" replace />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<StaffDashboardPage />} />
             <Route path="/queue" element={<StaffTicketQueuePage />} />
             <Route path="/queue/:id" element={<StaffTicketDetailPage />} />
             {isAdministrator && <Route path="/admin/users" element={<UserManagementPage />} />}
-            <Route path="*" element={<Navigate to="/queue" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </>
         ) : (
           <>
-            <Route path="/" element={<Navigate to="/tickets" replace />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<RequesterDashboardPage />} />
             <Route path="/tickets" element={<MyTicketsPage />} />
             <Route path="/tickets/new" element={<CreateTicketPage />} />
             <Route path="/tickets/:id" element={<TicketDetailPage />} />
-            <Route path="*" element={<Navigate to="/tickets" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </>
         )}
       </Route>

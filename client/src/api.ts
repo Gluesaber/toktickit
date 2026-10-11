@@ -73,7 +73,7 @@ export interface TicketListResponse {
   pagination: PaginationMeta;
 }
 
-export type SortField = "createdAt" | "ticketNumber" | "currentStatus" | "requestedPriority";
+export type SortField = "createdAt" | "ticketNumber" | "currentStatus" | "requestedPriority" | "updatedAt";
 export type SortDir = "asc" | "desc";
 
 // Issue 3-3 (Lab 3) — `requesterId` removed (BR-03/BR-17): the authenticated session determines
@@ -84,6 +84,7 @@ export interface TicketListQuery {
   relatedSystemId?: number;
   requestedPriority?: Priority;
   currentStatus?: string;
+  statusGroup?: "open"; // Issue 4-5 (Lab 4) — BR-27's open group, for dashboard drill-downs
   sortBy?: SortField;
   sortDir?: SortDir;
   page?: number;
@@ -109,6 +110,42 @@ export interface Comment {
   createdAt: string;
 }
 
+// Issue 4-4 (Lab 4) — Actions Taken and status history, as returned inside both Ticket Detail
+// responses (docs/lab-04/api-spec.md §0/§1).
+export type ActionStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+
+export interface UserRef {
+  id: number;
+  name: string;
+  role: Role;
+}
+
+export interface ActionTaken {
+  id: number;
+  ticketId: number;
+  actionAt: string;
+  description: string;
+  result: string | null;
+  status: ActionStatus;
+  performedBy: UserRef;
+  assignee: UserRef & { isActive: boolean };
+  followUpRequired: boolean;
+  followUpNote: string | null;
+  attachmentNotes: string | null;
+  version: number;
+  updatedBy: UserRef | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StatusHistoryEntry {
+  id: number;
+  fromStatus: string | null; // null = the "Created as New" entry
+  toStatus: string;
+  changedBy: UserRef;
+  changedAt: string;
+}
+
 export interface TicketDetail {
   id: number;
   ticketNumber: string;
@@ -120,10 +157,15 @@ export interface TicketDetail {
   requestedPriority: Priority;
   currentStatus: string;
   requesterConfirmedResolvedAt: string | null;
+  // Issue 4-3 (Lab 4) — optimistic-concurrency version (docs/lab-04/specification.md BR-22), sent
+  // back on the next status change so a stale screen can't overwrite someone else's change.
+  version: number;
   createdAt: string;
   updatedAt: string;
   attachments: Attachment[];
   comments: Comment[];
+  actions: ActionTaken[]; // Issue 4-4 (Lab 4) — read-only for the Requester (BR-15)
+  statusHistory: StatusHistoryEntry[];
 }
 
 // Issue 3-3 (Lab 3) — `requesterId` removed, same reasoning as TicketListQuery above.
@@ -141,17 +183,20 @@ export interface ApiErrorBody {
     code: string;
     message: string;
     fields?: Record<string, string>;
+    current?: unknown; // Issue 4-4 (Lab 4) — the server's current state on 409 STALE_UPDATE
   };
 }
 
 export class ApiError extends Error {
   code: string;
   fields?: Record<string, string>;
+  current?: unknown;
 
   constructor(body: ApiErrorBody) {
     super(body.error.message);
     this.code = body.error.code;
     this.fields = body.error.fields;
+    this.current = body.error.current;
   }
 }
 
@@ -192,6 +237,7 @@ export async function getTickets(query: TicketListQuery): Promise<TicketListResp
   if (query.relatedSystemId !== undefined) params.set("relatedSystemId", String(query.relatedSystemId));
   if (query.requestedPriority) params.set("requestedPriority", query.requestedPriority);
   if (query.currentStatus) params.set("currentStatus", query.currentStatus);
+  if (query.statusGroup) params.set("statusGroup", query.statusGroup);
   if (query.sortBy) params.set("sortBy", query.sortBy);
   if (query.sortDir) params.set("sortDir", query.sortDir);
   if (query.page !== undefined) params.set("page", String(query.page));
@@ -299,6 +345,7 @@ export interface StaffTicketListItem {
   itPriority: Priority;
   currentStatus: string;
   owner: { id: number; name: string; role: Role } | null;
+  requesterConfirmedResolvedAt: string | null; // Issue 4-5 (Lab 4) — Queue-row pill
   createdAt: string;
   updatedAt: string;
 }
@@ -317,6 +364,8 @@ export interface StaffTicketListQuery {
   itPriority?: Priority;
   currentStatus?: string;
   ownerId?: number | "unassigned";
+  statusGroup?: "open"; // Issue 4-5 (Lab 4)
+  requesterResolved?: boolean;
   sortBy?: StaffSortField;
   sortDir?: SortDir;
   page?: number;
@@ -331,6 +380,8 @@ export async function getStaffTickets(query: StaffTicketListQuery): Promise<Staf
   if (query.itPriority) params.set("itPriority", query.itPriority);
   if (query.currentStatus) params.set("currentStatus", query.currentStatus);
   if (query.ownerId !== undefined) params.set("ownerId", String(query.ownerId));
+  if (query.statusGroup) params.set("statusGroup", query.statusGroup);
+  if (query.requesterResolved) params.set("requesterResolved", "true");
   if (query.sortBy) params.set("sortBy", query.sortBy);
   if (query.sortDir) params.set("sortDir", query.sortDir);
   if (query.page !== undefined) params.set("page", String(query.page));
@@ -366,11 +417,14 @@ export interface StaffTicketDetail {
   itPriority: Priority;
   currentStatus: string;
   requesterConfirmedResolvedAt: string | null;
+  version: number; // Issue 4-3 (Lab 4) — BR-22, see TicketDetail
   createdAt: string;
   updatedAt: string;
   attachments: Attachment[];
   comments: Comment[];
   notes: Note[];
+  actions: ActionTaken[]; // Issue 4-4 (Lab 4)
+  statusHistory: StatusHistoryEntry[];
 }
 
 // Not in api-spec.md's original planning draft — added to populate ui-spec.md §7.1's Reassign
@@ -393,23 +447,34 @@ export async function getStaffTicket(id: number): Promise<StaffTicketDetail> {
   return res.json();
 }
 
-export async function setTicketOwner(ticketId: number, ownerId: number): Promise<{ id: number; owner: { id: number; name: string; role: Role } }> {
+// Issue 4-3 (Lab 4) — owner, IT Priority and status changes all carry the Ticket `version` the
+// screen last loaded and return the new one (docs/lab-04/api-spec.md §3). A mismatch comes back as
+// ApiError code STALE_UPDATE.
+export async function setTicketOwner(
+  ticketId: number,
+  ownerId: number,
+  version: number
+): Promise<{ id: number; owner: { id: number; name: string; role: Role }; version: number; updatedAt: string }> {
   const res = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/owner`, {
     method: "PATCH",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ownerId }),
+    body: JSON.stringify({ ownerId, version }),
   });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }
 
-export async function setItPriority(ticketId: number, itPriority: Priority): Promise<{ id: number; itPriority: Priority }> {
+export async function setItPriority(
+  ticketId: number,
+  itPriority: Priority,
+  version: number
+): Promise<{ id: number; itPriority: Priority; version: number; updatedAt: string }> {
   const res = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/priority`, {
     method: "PATCH",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ itPriority }),
+    body: JSON.stringify({ itPriority, version }),
   });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
@@ -428,12 +493,16 @@ export async function postNote(ticketId: number, content: string): Promise<Note>
 
 // Shared by the Requester's own Cancel action (TicketDetailPage) and every IT-Staff/Administrator
 // transition (StaffTicketDetailPage) — one endpoint, specification.md §11's Cancel-scope decision.
-export async function changeTicketStatus(ticketId: number, status: string): Promise<{ id: number; currentStatus: string; updatedAt: string }> {
+export async function changeTicketStatus(
+  ticketId: number,
+  status: string,
+  version: number
+): Promise<{ id: number; currentStatus: string; version: number; updatedAt: string; requesterConfirmedResolvedAt: string | null }> {
   const res = await fetch(`${API_URL}/api/tickets/${ticketId}/status`, {
     method: "PATCH",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, version }),
   });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
@@ -553,6 +622,129 @@ export async function changePassword(newPassword: string, confirmPassword: strin
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ newPassword, confirmPassword }),
   });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Issue 4-4 (Lab 4) — Actions Taken create/edit (docs/lab-04/api-spec.md §2). Both live under
+// /api/staff/*, so only IT Staff/Administrator screens call them.
+// ---------------------------------------------------------------------------
+
+export interface ActionInput {
+  actionAt?: string;
+  description?: string;
+  result?: string | null;
+  status?: ActionStatus;
+  assigneeId?: number;
+  followUpRequired?: boolean;
+  followUpNote?: string | null;
+  attachmentNotes?: string | null;
+}
+
+// One id per opened create form, so a double click or a network retry of the same form can never
+// create a second Action (BR-14). Falls back to a non-crypto id where randomUUID isn't available.
+export function newClientRequestId(): string {
+  const c = globalThis.crypto as Crypto | undefined;
+  if (c && typeof c.randomUUID === "function") return c.randomUUID();
+  return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+// 201 (created) and 200 (an earlier identical request already created it) are both success.
+export async function createAction(
+  ticketId: number,
+  input: ActionInput & { clientRequestId: string }
+): Promise<ActionTaken> {
+  const res = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/actions`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function updateAction(
+  ticketId: number,
+  actionId: number,
+  input: ActionInput & { version: number }
+): Promise<ActionTaken> {
+  const res = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/actions/${actionId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Issue 4-5 (Lab 4) — Dashboards (docs/lab-04/api-spec.md §5). `drillDown` is a client route (path +
+// query string) the UI renders as a link; null means the drill-down is the list shown on the page.
+// ---------------------------------------------------------------------------
+
+export interface DashboardMetric {
+  key: string;
+  label: string;
+  value: number;
+  drillDown: string | null;
+}
+
+export interface RequesterDashboard {
+  generatedAt: string;
+  timeZone: string;
+  windowStart: string;
+  metrics: DashboardMetric[];
+  lists: {
+    recentlyUpdated: { id: number; ticketNumber: string; summary: string; currentStatus: string; updatedAt: string }[];
+    recentlyResolved: { id: number; ticketNumber: string; summary: string; currentStatus: string; resolvedAt: string }[];
+  };
+}
+
+export interface StaffDashboard {
+  generatedAt: string;
+  timeZone: string;
+  windowStart: string;
+  metrics: DashboardMetric[];
+  byStatus: { status: string; value: number; drillDown: string }[];
+  openByItPriority: { itPriority: Priority; value: number; drillDown: string }[];
+  lists: {
+    myActions: {
+      actionId: number;
+      ticketId: number;
+      ticketNumber: string;
+      description: string;
+      status: ActionStatus;
+      followUpRequired: boolean;
+      actionAt: string;
+    }[];
+    urgentAndRecent: {
+      id: number;
+      ticketNumber: string;
+      summary: string;
+      currentStatus: string;
+      itPriority: Priority;
+      updatedAt: string;
+      owner: UserRef | null;
+    }[];
+  };
+  // Present only for an Administrator (BR-34).
+  users?: {
+    activeByRole: { role: Role; value: number; drillDown: string }[];
+    inactive: { value: number; drillDown: string };
+  };
+}
+
+export async function getRequesterDashboard(): Promise<RequesterDashboard> {
+  const res = await fetch(`${API_URL}/api/dashboard/requester`, { credentials: "include" });
+  if (!res.ok) return parseErrorAndThrow(res);
+  return res.json();
+}
+
+export async function getStaffDashboard(): Promise<StaffDashboard> {
+  const res = await fetch(`${API_URL}/api/staff/dashboard`, { credentials: "include" });
   if (!res.ok) return parseErrorAndThrow(res);
   return res.json();
 }

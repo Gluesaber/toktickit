@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import LoginPage from "../../src/pages/LoginPage.js";
 import App from "../../src/App.js";
@@ -132,7 +132,17 @@ describe("LoginPage", () => {
 // screens exist yet to scope"); testable now that StaffTicketQueuePage/App.tsx's role-conditional
 // routing exist. Rendered against the full App (not LoginPage alone) since the nav lives in
 // AppShell, reached through App.tsx's role-conditional routes.
+// Issue 4-5 (Lab 4) — every role now lands on its Dashboard, which has its own "Create Ticket" /
+// "View My Tickets" / "Search Tickets" links, so each check below is scoped to the Primary nav: that
+// is what this test was always about. Dashboard data is mocked as a failure so no real request is made.
+const primaryNav = () => screen.findByRole("navigation", { name: "Primary" });
+
 describe("Role-scoped navigation (UI-06)", () => {
+  beforeEach(() => {
+    vi.spyOn(api, "getRequesterDashboard").mockRejectedValue(new Error("not under test"));
+    vi.spyOn(api, "getStaffDashboard").mockRejectedValue(new Error("not under test"));
+  });
+
   it("shows only My Tickets/Create Ticket for a Requester, never Ticket Queue", async () => {
     vi.spyOn(api, "getMe").mockResolvedValue({
       id: 1,
@@ -151,9 +161,10 @@ describe("Role-scoped navigation (UI-06)", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("link", { name: /my tickets/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /create ticket/i })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /ticket queue/i })).not.toBeInTheDocument();
+    const nav = await primaryNav();
+    expect(within(nav).getByRole("link", { name: /my tickets/i })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: /create ticket/i })).toBeInTheDocument();
+    expect(within(nav).queryByRole("link", { name: /ticket queue/i })).not.toBeInTheDocument();
   });
 
   it("shows only Ticket Queue for IT Staff, never My Tickets/Create Ticket", async () => {
@@ -173,9 +184,10 @@ describe("Role-scoped navigation (UI-06)", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("link", { name: /ticket queue/i })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /my tickets/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /create ticket/i })).not.toBeInTheDocument();
+    const nav = await primaryNav();
+    expect(within(nav).getByRole("link", { name: /ticket queue/i })).toBeInTheDocument();
+    expect(within(nav).queryByRole("link", { name: /my tickets/i })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole("link", { name: /create ticket/i })).not.toBeInTheDocument();
   });
 
   it("routes an Administrator to the Ticket Queue too (full IT Staff parity)", async () => {
@@ -195,6 +207,6 @@ describe("Role-scoped navigation (UI-06)", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("link", { name: /ticket queue/i })).toBeInTheDocument();
+    expect(within(await primaryNav()).getByRole("link", { name: /ticket queue/i })).toBeInTheDocument();
   });
 });

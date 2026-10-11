@@ -14,6 +14,8 @@ import { RoleBadge } from "./Badges.js";
 // Issue 3-6 (Lab 3) — Administrator additionally gets User Management, on top of (not instead of)
 // the Ticket Queue link, matching the "full IT Staff parity, plus User Management" decision
 // (specification.md §11).
+// Issue 4-5 (Lab 4) — "Dashboard" is every role's first link (FR-15). NavLink marks the active link
+// with aria-current="page"; zen-green.css adds an underline so the cue isn't color alone (AC-41).
 export default function AppShell() {
   const { user, logout } = useAuth();
   const [navOpen, setNavOpen] = useState(false);
@@ -46,6 +48,9 @@ export default function AppShell() {
             className={`d-lg-flex gap-1 ${navOpen ? "d-flex flex-column w-100" : "d-none"}`}
             aria-label="Primary"
           >
+            <NavLink to="/dashboard" className={navLinkClass} end>
+              Dashboard
+            </NavLink>
             {isStaff ? (
               <>
                 <NavLink to="/queue" className={navLinkClass} end>

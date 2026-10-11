@@ -39,6 +39,11 @@ const TRANSITIONS: TransitionRule[] = [
   { from: "RESOLVED", to: "REOPENED", roles: STAFF },
   { from: "CLOSED", to: "REOPENED", roles: STAFF },
   { from: "REOPENED", to: "IN_PROGRESS", roles: STAFF },
+  // Issue 4-3 (Lab 4) — docs/lab-04/specification.md §5.2's two new rows. Without the first, a
+  // Reopened ticket whose fix is quick has to detour through In Progress; without the second, a
+  // Reopened ticket could never be withdrawn at all.
+  { from: "REOPENED", to: "RESOLVED", roles: STAFF },
+  { from: "REOPENED", to: "CANCELLED", roles: STAFF },
 ];
 
 export function canTransition(from: TicketStatus, to: TicketStatus, role: TransitionRole): boolean {
@@ -49,4 +54,25 @@ export function canTransition(from: TicketStatus, to: TicketStatus, role: Transi
 // permitted from a ticket's current status, so it can never present an option the API would 409 on.
 export function permittedTransitions(from: TicketStatus, role: TransitionRole): TicketStatus[] {
   return TRANSITIONS.filter((t) => t.from === from && t.roles.includes(role)).map((t) => t.to);
+}
+
+// Issue 4-3 (Lab 4) — the two workflow rules that ride along with a status change. Kept here as
+// pure functions next to the matrix so workflow-rules.unit.test.ts checks them in isolation
+// (UNIT-05, UNIT-07) and the status route only calls them.
+
+// BR-17: every transition into Resolved — from any source status — needs at least one Completed
+// Action on the Ticket. Planned, In Progress or Cancelled Actions don't count: they aren't evidence
+// that work was done.
+export function needsResolutionGate(to: TicketStatus): boolean {
+  return to === "RESOLVED";
+}
+
+export function meetsResolutionGate(actions: { status: string }[]): boolean {
+  return actions.some((a) => a.status === "COMPLETED");
+}
+
+// BR-18: the Requester's "Problem Appears Resolved" indication is cleared when staff start working
+// on the Ticket again, so a stale "Requester says resolved" can't follow a Ticket through a reopen.
+export function clearsRequesterIndication(to: TicketStatus): boolean {
+  return to === "IN_PROGRESS" || to === "REOPENED";
 }

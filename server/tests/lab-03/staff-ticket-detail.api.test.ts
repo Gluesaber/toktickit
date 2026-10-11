@@ -21,6 +21,13 @@ let otherStaffId: number;
 let inactiveStaffId: number;
 let requesterUserId: number;
 
+// Issue 4-3 (Lab 4) — every Ticket workflow PATCH (status/owner/priority) now requires the version
+// the client last saw (docs/lab-04/specification.md BR-22). This reads the current one so these Lab 3
+// assertions stay exactly what they were; stale-version behavior is Lab 4's own ticket-workflow tests.
+async function currentVersion(ticketId: number): Promise<number> {
+  return (await getPrisma().ticket.findUniqueOrThrow({ where: { id: ticketId } })).version;
+}
+
 async function createTicket(overrides: Record<string, unknown> = {}) {
   const res = await requesterAgent.post("/api/tickets").send({
     categoryId,
@@ -98,7 +105,7 @@ describe("GET /api/staff/users", () => {
 describe("PATCH /api/staff/tickets/:id/owner — claim", () => {
   it("claims an unassigned ticket for the caller", async () => {
     const ticket = await createTicket();
-    const res = await staffAgent.patch(`/api/staff/tickets/${ticket.id}/owner`).send({ ownerId: staffId });
+    const res = await staffAgent.patch(`/api/staff/tickets/${ticket.id}/owner`).send({ ownerId: staffId, version: await currentVersion(ticket.id) });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: ticket.id, owner: { id: staffId, role: "IT_STAFF" } });
   });
@@ -108,11 +115,11 @@ describe("PATCH /api/staff/tickets/:id/owner — claim", () => {
 describe("PATCH /api/staff/tickets/:id/owner — reassign", () => {
   it("reassigns an already-owned ticket to a different active IT Staff member, even from a non-owner caller", async () => {
     const ticket = await createTicket();
-    await staffAgent.patch(`/api/staff/tickets/${ticket.id}/owner`).send({ ownerId: staffId });
+    await staffAgent.patch(`/api/staff/tickets/${ticket.id}/owner`).send({ ownerId: staffId, version: await currentVersion(ticket.id) });
 
     // BR-20: no "must be current owner to reassign" restriction — otherStaffAgent isn't the current
     // owner and can still reassign.
-    const res = await otherStaffAgent.patch(`/api/staff/tickets/${ticket.id}/owner`).send({ ownerId: otherStaffId });
+    const res = await otherStaffAgent.patch(`/api/staff/tickets/${ticket.id}/owner`).send({ ownerId: otherStaffId, version: await currentVersion(ticket.id) });
     expect(res.status).toBe(200);
     expect(res.body.owner).toMatchObject({ id: otherStaffId, role: "IT_STAFF" });
   });
@@ -151,7 +158,7 @@ describe("PATCH /api/staff/tickets/:id/owner — invalid target", () => {
 describe("PATCH /api/staff/tickets/:id/priority", () => {
   it("updates itPriority without touching requestedPriority, regardless of Current Status", async () => {
     const ticket = await createTicket({ requestedPriority: "LOW" });
-    const res = await staffAgent.patch(`/api/staff/tickets/${ticket.id}/priority`).send({ itPriority: "URGENT" });
+    const res = await staffAgent.patch(`/api/staff/tickets/${ticket.id}/priority`).send({ itPriority: "URGENT", version: await currentVersion(ticket.id) });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: ticket.id, itPriority: "URGENT" });
 
@@ -172,7 +179,9 @@ describe("PATCH /api/staff/tickets/:id/priority", () => {
 describe("PATCH /api/tickets/:id/status — illegal transition", () => {
   it("rejects New -> Resolved directly with 409 TRANSITION_NOT_PERMITTED", async () => {
     const ticket = await createTicket();
-    const res = await staffAgent.patch(`/api/tickets/${ticket.id}/status`).send({ status: "RESOLVED" });
+    const res = await staffAgent
+      .patch(`/api/tickets/${ticket.id}/status`)
+      .send({ status: "RESOLVED", version: await currentVersion(ticket.id) });
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe("TRANSITION_NOT_PERMITTED");
   });
@@ -191,7 +200,20 @@ describe("PATCH /api/tickets/:id/status — every permitted staff transition suc
     const ticket = await createTicket();
     const path = ["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "IN_PROGRESS", "RESOLVED", "CLOSED", "REOPENED", "IN_PROGRESS"];
     for (const status of path) {
-      const res = await staffAgent.patch(`/api/tickets/${ticket.id}/status`).send({ status });
+      if (status === "RESOLVED") {
+        // Issue 4-3 (Lab 4) — BR-17 resolution gate: Resolved now needs a Completed Action first.
+        const action = await staffAgent.post(`/api/staff/tickets/${ticket.id}/actions`).send({
+          clientRequestId: `api39-${ticket.id}-${Date.now()}`,
+          actionAt: new Date().toISOString(),
+          description: "Work recorded so the ticket can be resolved.",
+          result: "Fixed.",
+          status: "COMPLETED",
+        });
+        expect(action.status).toBe(201);
+      }
+      const res = await staffAgent
+        .patch(`/api/tickets/${ticket.id}/status`)
+        .send({ status, version: await currentVersion(ticket.id) });
       expect(res.status).toBe(200);
       expect(res.body.currentStatus).toBe(status);
     }
@@ -202,7 +224,9 @@ describe("PATCH /api/tickets/:id/status — every permitted staff transition suc
     for (const startStatus of ["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER"] as const) {
       const ticket = await createTicket();
       await prisma.ticket.update({ where: { id: ticket.id }, data: { currentStatus: startStatus } });
-      const res = await staffAgent.patch(`/api/tickets/${ticket.id}/status`).send({ status: "CANCELLED" });
+      const res = await staffAgent
+        .patch(`/api/tickets/${ticket.id}/status`)
+        .send({ status: "CANCELLED", version: await currentVersion(ticket.id) });
       expect(res.status).toBe(200);
       expect(res.body.currentStatus).toBe("CANCELLED");
     }
@@ -219,9 +243,9 @@ describe("PATCH /api/tickets/:id/status — every permitted staff transition suc
     await adminAgent.post("/api/auth/login").send({ email: admin.email, password: FIXTURE_PASSWORD });
 
     const ticket = await createTicket();
-    expect((await adminAgent.patch(`/api/staff/tickets/${ticket.id}/owner`).send({ ownerId: admin.id })).status).toBe(200);
-    expect((await adminAgent.patch(`/api/staff/tickets/${ticket.id}/priority`).send({ itPriority: "HIGH" })).status).toBe(200);
-    expect((await adminAgent.patch(`/api/tickets/${ticket.id}/status`).send({ status: "OPEN" })).status).toBe(200);
+    expect((await adminAgent.patch(`/api/staff/tickets/${ticket.id}/owner`).send({ ownerId: admin.id, version: await currentVersion(ticket.id) })).status).toBe(200);
+    expect((await adminAgent.patch(`/api/staff/tickets/${ticket.id}/priority`).send({ itPriority: "HIGH", version: await currentVersion(ticket.id) })).status).toBe(200);
+    expect((await adminAgent.patch(`/api/tickets/${ticket.id}/status`).send({ status: "OPEN", version: await currentVersion(ticket.id) })).status).toBe(200);
     expect((await adminAgent.post(`/api/staff/tickets/${ticket.id}/notes`).send({ content: "Admin parity note." })).status).toBe(201);
   });
 });

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Category,
   RelatedSystem,
@@ -10,7 +10,8 @@ import {
   getRelatedSystems,
   getTickets,
 } from "../api.js";
-import { PriorityBadge, StatusBadge } from "../components/Badges.js";
+import { PriorityBadge, StatusBadge, statusLabel } from "../components/Badges.js";
+import { INVALID_LINK_NOTICE, ParamSpec, isPositiveInt, parseFilterParams, useUrlFilterSync } from "../urlFilters.js";
 
 // Issue 2-5 (Lab 2) — My Tickets: search/filter/sort/pagination over the current Requester's
 // own tickets. docs/lab-02/ui-spec.md §5, docs/lab-02/specification.md BR-13/BR-14/BR-15/BR-16/
@@ -21,7 +22,28 @@ const SORT_OPTIONS: { value: SortField; label: string }[] = [
   { value: "ticketNumber", label: "Ticket Number" },
   { value: "currentStatus", label: "Current Status" },
   { value: "requestedPriority", label: "Requested Priority" },
+  { value: "updatedAt", label: "Last Updated" }, // Issue 4-5 (Lab 4) — Requester Dashboard drill-down
 ];
+
+// Issue 4-5 (Lab 4) — filters, sort and page live in the URL (ui-spec.md §4, FR-16) so the Requester
+// Dashboard's links (e.g. /tickets?statusGroup=open) open pre-filtered. The Status filter used to
+// offer only "New" (Lab 2, when that was the only reachable status); it now lists all 8 plus
+// "All open" (statusGroup=open).
+const STATUS_OPTIONS = ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLVED", "CLOSED", "CANCELLED", "REOPENED"];
+const OPEN_GROUP = "group:open";
+const PRIORITY_VALUES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
+const MY_TICKETS_PARAMS: ParamSpec = {
+  search: {},
+  statusGroup: { allowed: ["open"] },
+  currentStatus: { allowed: STATUS_OPTIONS },
+  requestedPriority: { allowed: PRIORITY_VALUES },
+  categoryId: { test: isPositiveInt },
+  relatedSystemId: { test: isPositiveInt },
+  sortBy: { allowed: SORT_OPTIONS.map((o) => o.value) },
+  sortDir: { allowed: ["asc", "desc"] },
+  page: { test: isPositiveInt },
+  pageSize: { allowed: ["10", "25", "50"] },
+};
 
 type RefDataState = "loading" | "ready" | "failure";
 type ListState = "loading" | "ready" | "failure";
@@ -31,20 +53,71 @@ function formatDate(iso: string): string {
 }
 
 export default function MyTicketsPage() {
+  const [searchParams] = useSearchParams();
+  const [initial] = useState(() => parseFilterParams(searchParams, MY_TICKETS_PARAMS));
+  const init = initial.values;
+
   const [refDataState, setRefDataState] = useState<RefDataState>("loading");
   const [categories, setCategories] = useState<Category[]>([]);
   const [relatedSystems, setRelatedSystems] = useState<RelatedSystem[]>([]);
+  const [linkNotice, setLinkNotice] = useState(initial.invalid);
 
-  const [searchInput, setSearchInput] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [relatedSystemFilter, setRelatedSystemFilter] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [sortBy, setSortBy] = useState<SortField>("createdAt");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [searchInput, setSearchInput] = useState(init.search ?? "");
+  const [debouncedSearch, setDebouncedSearch] = useState(init.search ?? "");
+  const [categoryFilter, setCategoryFilter] = useState(init.categoryId ?? "");
+  const [relatedSystemFilter, setRelatedSystemFilter] = useState(init.relatedSystemId ?? "");
+  const [priorityFilter, setPriorityFilter] = useState(init.requestedPriority ?? "");
+  const [statusFilter, setStatusFilter] = useState(init.statusGroup ? OPEN_GROUP : init.currentStatus ?? "");
+  const [sortBy, setSortBy] = useState<SortField>((init.sortBy as SortField) ?? "createdAt");
+  const [sortDir, setSortDir] = useState<SortDir>((init.sortDir as SortDir) ?? "desc");
+  const [page, setPage] = useState(init.page ? Number(init.page) : 1);
+  const [pageSize, setPageSize] = useState(init.pageSize ? Number(init.pageSize) : 10);
+
+  // Same "keep the URL's page" rule as the Ticket Queue: only a filter set that didn't come from the
+  // URL resets to page 1.
+  const filterKey = [debouncedSearch, categoryFilter, relatedSystemFilter, priorityFilter, statusFilter, sortBy, sortDir, pageSize].join("|");
+  const urlFilterKey = useRef<string | null>(filterKey);
+
+  function applyFromUrl(values: Record<string, string>, invalid: boolean) {
+    urlFilterKey.current = [
+      values.search ?? "",
+      values.categoryId ?? "",
+      values.relatedSystemId ?? "",
+      values.requestedPriority ?? "",
+      values.statusGroup ? OPEN_GROUP : values.currentStatus ?? "",
+      values.sortBy ?? "createdAt",
+      values.sortDir ?? "desc",
+      values.pageSize ? Number(values.pageSize) : 10,
+    ].join("|");
+    setSearchInput(values.search ?? "");
+    setDebouncedSearch(values.search ?? "");
+    setCategoryFilter(values.categoryId ?? "");
+    setRelatedSystemFilter(values.relatedSystemId ?? "");
+    setPriorityFilter(values.requestedPriority ?? "");
+    setStatusFilter(values.statusGroup ? OPEN_GROUP : values.currentStatus ?? "");
+    setSortBy((values.sortBy as SortField) ?? "createdAt");
+    setSortDir((values.sortDir as SortDir) ?? "desc");
+    setPage(values.page ? Number(values.page) : 1);
+    setPageSize(values.pageSize ? Number(values.pageSize) : 10);
+    setLinkNotice(invalid);
+  }
+
+  useUrlFilterSync(
+    {
+      search: debouncedSearch,
+      statusGroup: statusFilter === OPEN_GROUP ? "open" : "",
+      currentStatus: statusFilter === OPEN_GROUP ? "" : statusFilter,
+      requestedPriority: priorityFilter,
+      categoryId: categoryFilter,
+      relatedSystemId: relatedSystemFilter,
+      sortBy: sortBy === "createdAt" ? "" : sortBy,
+      sortDir: sortDir === "desc" ? "" : sortDir,
+      page: page > 1 ? String(page) : "",
+      pageSize: pageSize === 10 ? "" : String(pageSize),
+    },
+    MY_TICKETS_PARAMS,
+    applyFromUrl
+  );
 
   const [listState, setListState] = useState<ListState>("loading");
   const [tickets, setTickets] = useState<TicketListItem[]>([]);
@@ -59,11 +132,12 @@ export default function MyTicketsPage() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Reset to page 1 whenever the effective query (not the page itself) changes.
+  // Reset to page 1 whenever the effective query (not the page itself) changes — unless the URL set it.
   useEffect(() => {
+    if (filterKey === urlFilterKey.current) return;
+    urlFilterKey.current = null;
     setPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, categoryFilter, relatedSystemFilter, priorityFilter, statusFilter, sortBy, sortDir, pageSize]);
+  }, [filterKey]);
 
   async function loadReferenceData() {
     setRefDataState("loading");
@@ -90,7 +164,8 @@ export default function MyTicketsPage() {
         categoryId: categoryFilter ? Number(categoryFilter) : undefined,
         relatedSystemId: relatedSystemFilter ? Number(relatedSystemFilter) : undefined,
         requestedPriority: priorityFilter ? (priorityFilter as never) : undefined,
-        currentStatus: statusFilter || undefined,
+        currentStatus: statusFilter && statusFilter !== OPEN_GROUP ? statusFilter : undefined,
+        statusGroup: statusFilter === OPEN_GROUP ? "open" : undefined,
         sortBy,
         sortDir,
         page,
@@ -122,7 +197,16 @@ export default function MyTicketsPage() {
     setRelatedSystemFilter("");
     setPriorityFilter("");
     setStatusFilter("");
+    setLinkNotice(false);
   }
+
+  const filterSummary = [
+    debouncedSearch ? `"${debouncedSearch}"` : "",
+    statusFilter === OPEN_GROUP ? "All open" : statusFilter ? statusLabel(statusFilter) : "",
+    priorityFilter ? `Priority ${priorityFilter.toLowerCase()}` : "",
+    categoryFilter ? categories.find((c) => String(c.id) === categoryFilter)?.name ?? "Category" : "",
+    relatedSystemFilter ? relatedSystems.find((r) => String(r.id) === relatedSystemFilter)?.name ?? "Related system" : "",
+  ].filter(Boolean);
 
   return (
     <div>
@@ -132,6 +216,12 @@ export default function MyTicketsPage() {
           Create Ticket
         </Link>
       </div>
+
+      {linkNotice && (
+        <div className="alert alert-info py-2 small" role="status">
+          {INVALID_LINK_NOTICE}
+        </div>
+      )}
 
       {refDataState === "failure" && (
         <div className="alert alert-danger" role="alert">
@@ -221,11 +311,17 @@ export default function MyTicketsPage() {
             onChange={(e) => setStatusFilter(e.target.value)}
           >
             <option value="">All</option>
-            <option value="NEW">New</option>
+            <option value={OPEN_GROUP}>All open</option>
+            {STATUS_OPTIONS.map((st) => (
+              <option key={st} value={st}>
+                {statusLabel(st)}
+              </option>
+            ))}
           </select>
         </div>
         {hasActiveFilters && (
-          <div className="col-12">
+          <div className="col-12 d-flex flex-wrap align-items-center gap-2">
+            <span className="small text-muted">Showing: {filterSummary.join(" · ")}</span>
             <button type="button" className="btn btn-link p-0" onClick={clearFilters}>
               Clear filters
             </button>

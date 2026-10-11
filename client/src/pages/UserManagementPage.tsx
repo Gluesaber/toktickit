@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   AdminUser,
   ApiError,
@@ -10,6 +11,7 @@ import {
 } from "../api.js";
 import { RoleBadge } from "../components/Badges.js";
 import { useAuth } from "../context/AuthContext.js";
+import { INVALID_LINK_NOTICE, ParamSpec, parseFilterParams, useUrlFilterSync } from "../urlFilters.js";
 
 // Issue 3-6 (Lab 3) — the minimalist Administrator User Management screen. docs/lab-03/ui-spec.md
 // §8, specification.md FR-17..FR-21. No pagination (labsheet §4.2 exclusion) — the full matching
@@ -20,6 +22,13 @@ const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: "IT_STAFF", label: "IT Staff" },
   { value: "ADMINISTRATOR", label: "Administrator" },
 ];
+
+// Issue 4-5 (Lab 4) — search and role filter live in the URL (ui-spec.md §4, FR-16), so the
+// Administrator Dashboard's "Active IT Staff" card opens /admin/users?role=IT_STAFF pre-filtered.
+const USER_PARAMS: ParamSpec = {
+  search: {},
+  role: { allowed: ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"] },
+};
 
 interface FormState {
   name: string;
@@ -36,9 +45,19 @@ export default function UserManagementPage() {
 
   const [listState, setListState] = useState<ListState>("loading");
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [searchInput, setSearchInput] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<Role | "">("");
+  const [searchParams] = useSearchParams();
+  const [initial] = useState(() => parseFilterParams(searchParams, USER_PARAMS));
+  const [linkNotice, setLinkNotice] = useState(initial.invalid);
+  const [searchInput, setSearchInput] = useState(initial.values.search ?? "");
+  const [debouncedSearch, setDebouncedSearch] = useState(initial.values.search ?? "");
+  const [roleFilter, setRoleFilter] = useState<Role | "">((initial.values.role as Role) ?? "");
+
+  useUrlFilterSync({ search: debouncedSearch, role: roleFilter }, USER_PARAMS, (values, invalid) => {
+    setSearchInput(values.search ?? "");
+    setDebouncedSearch(values.search ?? "");
+    setRoleFilter((values.role as Role) ?? "");
+    setLinkNotice(invalid);
+  });
 
   // Fetched separately from the (possibly filtered/searched) main list, so "is this the last active
   // Administrator" is always computed against the real system-wide roster — never undercounted just
@@ -103,6 +122,7 @@ export default function UserManagementPage() {
   function clearFilters() {
     setSearchInput("");
     setRoleFilter("");
+    setLinkNotice(false);
   }
 
   // ui-spec.md §8.2: the Activation toggle is disabled, with a tooltip, for the logged-in
@@ -210,6 +230,12 @@ export default function UserManagementPage() {
   return (
     <div>
       <h1 className="h4 mb-4">User Management</h1>
+
+      {linkNotice && (
+        <div className="alert alert-info py-2 small" role="status">
+          {INVALID_LINK_NOTICE}
+        </div>
+      )}
 
       <div className="row g-2 mb-3 align-items-end">
         <div className="col-md-4">
